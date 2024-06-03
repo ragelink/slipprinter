@@ -2,6 +2,8 @@
 
 CheckPrinter is a Python utility to print checks using an ESC/POS compatible printer. The program prompts the user for the necessary details (date, payee, amount, and amount in words) and prints the check with the specified details in the correct positions. This is optimized for the EPSON TM-U295P Slip Printer but should work for most ESC/POS systems.
 
+_*This is a work in progress, with current limited testing, please use at your own risk :-)*_
+
 ## Features
 
 - Prompts the user for check details (date, payee, amount, amount in words)
