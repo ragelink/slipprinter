@@ -5,28 +5,43 @@ import textwrap
 printer = Usb(0x04b8, 0x0e15)  # Example values for an Epson printer
 
 def print_check(date, payee, amount, amount_words):
-    # Date
-    printer.set(align='left')
-    printer.text(f"Date: {date}\n")
-
-    # Pay to the Order of
-    printer.text(f"Pay to the Order of: {payee}\n")
-
-    # Amount
-    printer.set(align='right')
+    # Set positioning based on measurements
+    # Use ESC/POS commands to set positions (assuming 1 cm = ~8 characters and 1 cm = ~12 lines for simplicity)
+    
+    # Print Date
+    printer.set(align='left', font='a', width=1, height=1)
+    printer.text("\n" * 1)  # Move down 1 cm
+    printer.text(" " * 15)  # Move right 15 cm
+    printer.text(f"{date}\n")
+    
+    # Print Payee
+    printer.text("\n" * 1)  # Move down 1 more cm
+    printer.text(" " * 2)  # Move right 2 cm
+    printer.text(f"{payee}\n")
+    
+    # Print Amount
+    printer.text("\n" * 1)  # Move down 1 more cm
+    printer.text(" " * 15)  # Move right 15 cm
     printer.text(f"${amount}\n")
     
-    # Amount in Words
-    printer.set(align='left')
+    # Print Amount in Words
+    printer.text("\n" * 1)  # Move down 1 more cm
+    printer.text(" " * 2)  # Move right 2 cm
     amount_words_wrapped = textwrap.fill(amount_words, width=32)
-    printer.text(f"Amount in Words: {amount_words_wrapped}\n")
+    printer.text(f"{amount_words_wrapped}\n")
 
     # Cut the receipt
     printer.cut()
 
-# Example usage
-date = "06/03/2024"
-payee = "John Doe"
-amount = "1234.56"
-amount_words = "One Thousand Two Hundred Thirty-Four Dollars and Fifty-Six Cents"
-print_check(date, payee, amount, amount_words)
+def main():
+    print("Welcome to the Check Printer Program")
+    date = input("Enter the date (MM/DD/YYYY): ")
+    payee = input("Enter the payee name: ")
+    amount = input("Enter the amount: ")
+    amount_words = input("Enter the amount in words: ")
+    
+    print_check(date, payee, amount, amount_words)
+    print("Check printed successfully!")
+
+if __name__ == "__main__":
+    main()
