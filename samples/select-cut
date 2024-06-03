@@ -1,0 +1,113 @@
+'// ============================================================================
+'//  Select cut mode and cut paper
+'// ============================================================================
+
+'// Initialize printer
+    ESC "@"
+
+'// --- Print voucher A --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.1" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher A ---<<<
+
+
+'// --- Print voucher B --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.2" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher B ---<<<
+
+
+'// --- Print voucher C --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.3" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher C ---<<<
+
+
+'// If there is a while before the next printing, this performs paper feeding to
+'// prevent paper jams in the auto-cutter section.
+'// Print and feed paper: In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// ============================================================================
+'//  Select cut mode and cut paper
+'// ============================================================================
+
+'// Initialize printer
+    ESC "@"
+
+'// --- Print voucher A --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.1" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher A ---<<<
+
+
+'// --- Print voucher B --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.2" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher B ---<<<
+
+
+'// --- Print voucher C --->>>
+'// Process that prevents uneven paper feeding to provide the best printing result
+'// Print and feed paper:
+'// In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+'// Voucher text data and print and line feed
+    "NOV-1-2012   13:00" LF
+    "Table No.6" LF
+    "TM-Uxxx ..... No.3" LF
+'// Select cut mode and cut paper: [Function B] Feed paper to (cutting position +
+'// 1.25 mm (20/406 inches)) and executes a partial cut (one point left uncut).
+    GS "V" 66 20
+'// --- Print voucher C ---<<<
+
+
+'// If there is a while before the next printing, this performs paper feeding to
+'// prevent paper jams in the auto-cutter section.
+'// Print and feed paper: In case TM-T20, paper feeding amount = 1.00 mm (16/406 inches)
+    ESC "J" 16
+

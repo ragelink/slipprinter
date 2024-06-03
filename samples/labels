@@ -1,0 +1,393 @@
+'// ============================================================================
+'//  Issuing labels
+'//
+'//  This sample is a script exclusively for the TM-L90.
+'// ============================================================================
+
+'// --- Sheet settings for the user setting mode --->>>
+'// Change into the user setting mode.
+    GS "(E" 3 0 1 "IN"
+
+'// Receiving the notification for changing to the user settings mode
+'// Because "senddat.exe" cannot differentiate between notifications,
+'// it temporarily uses stand-by as an alternative.
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+
+'// The following set values are for roll paper for a die cut labels with a width
+'// of 59.5 mm.
+'// Example with (label 56.0 mm wide, 25.5 mm tall, label spacing 5.0 mm)
+
+'// Set the customized setting values:
+'// Sheet width settings (units of 1 mm) = 60 mm
+    GS "(E" 4 0 5 117 60 0
+'// Set paper layout
+    GS "(E" 28 0 49
+'// Layout reference:
+'//   (a): Layout reference = Bottom of a label (Paper type = Label paper)
+      "64;"
+'// Specify the height layout:
+'//   (b): Bottom of a label - bottom of the next label:       30.5 mm
+'//   (c): Bottom of a label - top of the next label:           5.0 mm
+'//   (d): Bottom of a label - print starting position:         7.0 mm
+'//   (e): Bottom of a label - cutting position.:               2.5 mm
+'//   (f): Print starting position - bottom of the print area: 21.5 mm
+      "305;50;70;25;215;"
+'// Specify the width layout:
+'//   (g): Left of the paper - left of the print area:        5.0 mm
+'//   (h): Left of the print area - right of the print area: 49.5 mm
+      "50;495;"
+'// Be aware that the above sheet layout settings are not set if the value
+'// combinations are invalid.
+
+'// End the user setting mode session: After this, the printer will automatically
+'// perform a software reset.
+    GS "(E" 4 0 2 "OUT"
+'// === wait 6000 ms (function of senddat.exe) ===
+*6000
+'// --- Sheet settings in user settings mode ---<<<
+
+
+
+'// Creating label #00061
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+'// === Awaiting key input (function of senddat.exe) ===
+.Label #00061: print ready, hit any key
+
+'// --- Print label title --->>>
+'// Select justification: Centering
+    ESC "a" 1
+'// Select character font: Font A
+    ESC "M" 0
+'// Turn emphasized mode on/off: Turn emphasized mode on
+    ESC "E" 1
+'// Select character size: (horizontal (times 2) x vertical (times 1))
+    GS "!" 0x10
+    "EPSON"
+'// Select character size: Normal size
+    GS "!" 0x00
+'// Text data and print and line feed
+    " Rental Video" LF
+'// Turn emphasized mode on/off: Turn emphasized mode off
+    ESC "E" 0
+'// --- Print label title ---<<<
+
+
+'// --- Print barcode --->>>
+'// Select print position of HRI characters: Below the barcode
+    GS "H" 2
+'// Select font for HRI characters: Font B
+    GS "f" 1
+'// Set barcode height: in case TM-L90, 4.375 mm (35/203 inches)
+    GS "h" 35
+'// Print barcode: CODE39
+    GS "k" 4 "*00061*" 0
+'// Print and feed paper: Paper feeding amount = 2.50 mm (40/406 inches)
+    ESC "J" 40
+'// --- Print barcode ---<<<
+
+
+'// --- Print NAME --->>>
+'// Turn underline mode on/off: Set at 1-dot width.
+    ESC "-" 1
+    "NAME                     "
+'// Print and feed paper: Paper feeding amount = 4.38 mm (70/406 inches)
+    ESC "J" 70
+'// Turn underline mode on/off: Turns off underline mode.
+    ESC "-" 0
+'// --- Print NAME ---<<<
+
+
+'// --- Print date and put out the head of the label --->>>
+'// Select justification: Right justification
+    ESC "a" 2
+'// Select character font: Font B
+    ESC "M" 1
+'// Date characters date and print and line feed
+    "NOV. 1, 2012" LF
+'// Select label and black mark control function(s):
+'// Feed paper to the label peeling position
+    FS "(L" 2 0 65 49
+'// === Display message to the console (function of senddat.exe) ===
+!peel and stick #00061,
+'// === wait 3000 ms (function of senddat.exe) ===
+*3000
+'// === Awaiting key input (function of senddat.exe) ===
+. then hit any key
+
+'// Select label and black mark control function(s):
+'// Feed paper to the print starting position on the current label
+    FS "(L" 2 0 67 50
+'// --- Print date and put out the head of the label ---<<<
+
+
+
+'// Creating label #00062
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+'// === Awaiting key input (function of senddat.exe) ===
+.Label #00062: print ready, hit any key
+
+'// --- Print label title --->>>
+'// Select justification: Centering
+    ESC "a" 1
+'// Select character font: Font A
+    ESC "M" 0
+'// Turn emphasized mode on/off: Turn emphasized mode on
+    ESC "E" 1
+'// Select character size: (horizontal (times 2) x vertical (times 1))
+    GS "!" 0x10
+    "EPSON"
+'// Select character size: Normal size
+    GS "!" 0x00
+'// Text data and print and line feed
+    " Rental Video" LF
+'// Turn emphasized mode on/off: Turn emphasized mode off
+    ESC "E" 0
+'// --- Print label title ---<<<
+
+
+'// --- Print barcode --->>>
+'// Select print position of HRI characters: Below the barcode
+    GS "H" 2
+'// Select font for HRI characters: Font B
+    GS "f" 1
+'// Set barcode height: in case TM-L90, 4.375 mm (35/203 inches)
+    GS "h" 35
+'// Print barcode: CODE39
+    GS "k" 4 "*00062*" 0
+'// Print and feed paper: Paper feeding amount = 2.50 mm (40/406 inches)
+    ESC "J" 40
+'// --- Print barcode ---<<<
+
+
+'// --- Print NAME --->>>
+'// Turn underline mode on/off: Set at 1-dot width.
+    ESC "-" 1
+    "NAME                     "
+'// Print and feed paper: Paper feeding amount = 4.38 mm (70/406 inches)
+    ESC "J" 70
+'// Turn underline mode on/off: Turns off underline mode.
+    ESC "-" 0
+'// --- Print NAME ---<<<
+
+
+'// --- Print date and put out the head of the label --->>>
+'// Select justification: Right justification
+    ESC "a" 2
+'// Select character font: Font B
+    ESC "M" 1
+'// Date text data and print and line feed
+    "NOV. 1, 2012" LF
+'// Select label and black mark control function(s):
+'// Feed paper to the label peeling position
+    FS "(L" 2 0 65 49
+'// === Display message to console (function of senddat.exe) ===
+!peel and stick #00062,
+'// === wait 3000 ms (function of senddat.exe) ===
+*3000
+'// === Awaiting key input (function of senddat.exe) ===
+. then hit any key
+
+'// Select label and black mark control function(s):
+'// Feed paper to the print starting position on the current label
+    FS "(L" 2 0 67 50
+'// --- Print date and put out the head of the label ---<<<
+'// ============================================================================
+'//  Issuing labels
+'//
+'//  This sample is a script exclusively for the TM-L90.
+'// ============================================================================
+
+'// --- Sheet settings for the user setting mode --->>>
+'// Change into the user setting mode.
+    GS "(E" 3 0 1 "IN"
+
+'// Receiving the notification for changing to the user settings mode
+'// Because "senddat.exe" cannot differentiate between notifications,
+'// it temporarily uses stand-by as an alternative.
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+
+'// The following set values are for roll paper for a die cut labels with a width
+'// of 59.5 mm.
+'// Example with (label 56.0 mm wide, 25.5 mm tall, label spacing 5.0 mm)
+
+'// Set the customized setting values:
+'// Sheet width settings (units of 1 mm) = 60 mm
+    GS "(E" 4 0 5 117 60 0
+'// Set paper layout
+    GS "(E" 28 0 49
+'// Layout reference:
+'//   (a): Layout reference = Bottom of a label (Paper type = Label paper)
+      "64;"
+'// Specify the height layout:
+'//   (b): Bottom of a label - bottom of the next label:       30.5 mm
+'//   (c): Bottom of a label - top of the next label:           5.0 mm
+'//   (d): Bottom of a label - print starting position:         7.0 mm
+'//   (e): Bottom of a label - cutting position.:               2.5 mm
+'//   (f): Print starting position - bottom of the print area: 21.5 mm
+      "305;50;70;25;215;"
+'// Specify the width layout:
+'//   (g): Left of the paper - left of the print area:        5.0 mm
+'//   (h): Left of the print area - right of the print area: 49.5 mm
+      "50;495;"
+'// Be aware that the above sheet layout settings are not set if the value
+'// combinations are invalid.
+
+'// End the user setting mode session: After this, the printer will automatically
+'// perform a software reset.
+    GS "(E" 4 0 2 "OUT"
+'// === wait 6000 ms (function of senddat.exe) ===
+*6000
+'// --- Sheet settings in user settings mode ---<<<
+
+
+
+'// Creating label #00061
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+'// === Awaiting key input (function of senddat.exe) ===
+.Label #00061: print ready, hit any key
+
+'// --- Print label title --->>>
+'// Select justification: Centering
+    ESC "a" 1
+'// Select character font: Font A
+    ESC "M" 0
+'// Turn emphasized mode on/off: Turn emphasized mode on
+    ESC "E" 1
+'// Select character size: (horizontal (times 2) x vertical (times 1))
+    GS "!" 0x10
+    "EPSON"
+'// Select character size: Normal size
+    GS "!" 0x00
+'// Text data and print and line feed
+    " Rental Video" LF
+'// Turn emphasized mode on/off: Turn emphasized mode off
+    ESC "E" 0
+'// --- Print label title ---<<<
+
+
+'// --- Print barcode --->>>
+'// Select print position of HRI characters: Below the barcode
+    GS "H" 2
+'// Select font for HRI characters: Font B
+    GS "f" 1
+'// Set barcode height: in case TM-L90, 4.375 mm (35/203 inches)
+    GS "h" 35
+'// Print barcode: CODE39
+    GS "k" 4 "*00061*" 0
+'// Print and feed paper: Paper feeding amount = 2.50 mm (40/406 inches)
+    ESC "J" 40
+'// --- Print barcode ---<<<
+
+
+'// --- Print NAME --->>>
+'// Turn underline mode on/off: Set at 1-dot width.
+    ESC "-" 1
+    "NAME                     "
+'// Print and feed paper: Paper feeding amount = 4.38 mm (70/406 inches)
+    ESC "J" 70
+'// Turn underline mode on/off: Turns off underline mode.
+    ESC "-" 0
+'// --- Print NAME ---<<<
+
+
+'// --- Print date and put out the head of the label --->>>
+'// Select justification: Right justification
+    ESC "a" 2
+'// Select character font: Font B
+    ESC "M" 1
+'// Date characters date and print and line feed
+    "NOV. 1, 2012" LF
+'// Select label and black mark control function(s):
+'// Feed paper to the label peeling position
+    FS "(L" 2 0 65 49
+'// === Display message to the console (function of senddat.exe) ===
+!peel and stick #00061,
+'// === wait 3000 ms (function of senddat.exe) ===
+*3000
+'// === Awaiting key input (function of senddat.exe) ===
+. then hit any key
+
+'// Select label and black mark control function(s):
+'// Feed paper to the print starting position on the current label
+    FS "(L" 2 0 67 50
+'// --- Print date and put out the head of the label ---<<<
+
+
+
+'// Creating label #00062
+'// === wait 2000 ms (function of senddat.exe) ===
+*2000
+'// === Awaiting key input (function of senddat.exe) ===
+.Label #00062: print ready, hit any key
+
+'// --- Print label title --->>>
+'// Select justification: Centering
+    ESC "a" 1
+'// Select character font: Font A
+    ESC "M" 0
+'// Turn emphasized mode on/off: Turn emphasized mode on
+    ESC "E" 1
+'// Select character size: (horizontal (times 2) x vertical (times 1))
+    GS "!" 0x10
+    "EPSON"
+'// Select character size: Normal size
+    GS "!" 0x00
+'// Text data and print and line feed
+    " Rental Video" LF
+'// Turn emphasized mode on/off: Turn emphasized mode off
+    ESC "E" 0
+'// --- Print label title ---<<<
+
+
+'// --- Print barcode --->>>
+'// Select print position of HRI characters: Below the barcode
+    GS "H" 2
+'// Select font for HRI characters: Font B
+    GS "f" 1
+'// Set barcode height: in case TM-L90, 4.375 mm (35/203 inches)
+    GS "h" 35
+'// Print barcode: CODE39
+    GS "k" 4 "*00062*" 0
+'// Print and feed paper: Paper feeding amount = 2.50 mm (40/406 inches)
+    ESC "J" 40
+'// --- Print barcode ---<<<
+
+
+'// --- Print NAME --->>>
+'// Turn underline mode on/off: Set at 1-dot width.
+    ESC "-" 1
+    "NAME                     "
+'// Print and feed paper: Paper feeding amount = 4.38 mm (70/406 inches)
+    ESC "J" 70
+'// Turn underline mode on/off: Turns off underline mode.
+    ESC "-" 0
+'// --- Print NAME ---<<<
+
+
+'// --- Print date and put out the head of the label --->>>
+'// Select justification: Right justification
+    ESC "a" 2
+'// Select character font: Font B
+    ESC "M" 1
+'// Date text data and print and line feed
+    "NOV. 1, 2012" LF
+'// Select label and black mark control function(s):
+'// Feed paper to the label peeling position
+    FS "(L" 2 0 65 49
+'// === Display message to console (function of senddat.exe) ===
+!peel and stick #00062,
+'// === wait 3000 ms (function of senddat.exe) ===
+*3000
+'// === Awaiting key input (function of senddat.exe) ===
+. then hit any key
+
+'// Select label and black mark control function(s):
+'// Feed paper to the print starting position on the current label
+    FS "(L" 2 0 67 50
+'// --- Print date and put out the head of the label ---<<<
+
