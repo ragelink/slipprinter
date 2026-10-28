@@ -1,7 +1,14 @@
-.PHONY: install lint format test test-pr test-nightly test-release test-debug
+.PHONY: install hooks scan lint format test test-pr test-nightly test-release test-debug
 
 install:
 	uv sync
+
+hooks:
+	uv run pre-commit install
+
+scan:
+	gitleaks git . --config .gitleaks.toml --redact --no-banner
+	gitleaks dir . --config .gitleaks.toml --redact --no-banner
 
 lint:
 	uv run ruff format --check .

@@ -16,15 +16,32 @@ This repo and its issue tracker are **public**. Never put any of the following i
 - hardware serial numbers. USB-serial device paths such as `/dev/cu.usbserial-XXXXXXXX` embed one. Detect the port at runtime; never hard-code it.
 - secrets of any kind: tokens, keys, passwords
 
-Fixtures use obviously fake data (`Jane Example`, `000123456789`). When describing hardware or a bug in an issue, describe it generically. The secrets/PII scanners enforce this, but they are a backstop, not permission to be careless.
+Fixtures use obviously fake data (`Jane Example`, account and routing numbers starting with `000`, `000-00-0000`, device names containing `TEST`). When describing hardware or a bug in an issue, describe it generically. The scanners enforce this, but they are a backstop, not permission to be careless:
+
+- **gitleaks** with the default secret rules plus PII rules in `.gitleaks.toml`: routing numbers, account numbers, MICR lines, SSNs, USB-serial device paths. Fake values (above) are allowlisted.
+- **pre-commit** runs gitleaks, Ruff and the `always` tests before every commit (`make hooks` to install).
+- **CI** scans the full git history on every push and PR (`make scan` runs the same thing locally).
+- **Issue and PR text** is scanned when posted or edited; a match gets a comment and a failed check. GitHub keeps edit history, so a real leak has to be deleted, not just edited out.
 
 ## Layout
 
 ```
-src/slipprinter/   the package (console script: `slip`)
-tests/             pytest, one file per module
-print_check.py     legacy scripts, kept working until the `slip` CLI replaces them
-print_receipt.py
+src/slipprinter/
+  connection.py    port detection
+  status.py        decoding real-time status (DLE EOT)
+  device.py        SlipPrinter: status, wait for slip, guarded print
+  profile.py       TM-U295 command table: every documented command, plus unsupported ones and why
+  raw.py           Epson-notation parser for `slip send`, validated against the table
+  options.py       template-wide options: spacing, character sets, custom characters, eject, drawer
+  images.py        bit images (ESC *) from image files
+  template.py      template schema, validation, render, preview
+  words.py         amounts in words
+  library.py       built-in + personal template lookup
+  cli.py           the `slip` command
+  web.py           local web UI server (`slip serve`); web/index.html is the page
+  templates/       built-in templates
+tests/             pytest, one file per module; fakes.py scripts a printer
+docs/capabilities.md  every printer command and where it's exposed (kept in sync by a test)
 samples/           reference images and Epson command listings
 ```
 
@@ -34,6 +51,7 @@ samples/           reference images and Epson command listings
 |---|---|
 | Environment and dependencies | `uv` (`uv sync`); `uv.lock` is committed |
 | Format and lint | Ruff (`make format`, `make lint`), zero warnings |
+| Secrets and PII | gitleaks (`make scan`), pre-commit (`make hooks`) |
 | Tests | pytest with tier markers |
 
 Docker is deliberately not used: Docker Desktop on macOS can't pass a USB-serial device through to a container, and this tool exists to drive a serial printer on the host.

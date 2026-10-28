@@ -5,7 +5,8 @@ from types import SimpleNamespace
 import pytest
 
 from slipprinter import connection
-from slipprinter.connection import PortNotFoundError, candidate_ports, find_port, get_printer
+from slipprinter.connection import PortNotFoundError, candidate_ports, find_port
+from slipprinter.device import SlipPrinter
 
 pytestmark = pytest.mark.always
 
@@ -50,24 +51,21 @@ def test_several_ports_is_an_error_naming_them(monkeypatch):
         find_port()
 
 
-def test_printer_uses_xonxoff_without_hardware_flow_control():
-    printer = get_printer("/dev/cu.does-not-exist")
-    assert (printer.baudrate, printer.xonxoff, printer.dsrdtr) == (9600, True, False)
+def test_printer_opens_9600_8n1_with_xonxoff(monkeypatch):
+    opened = {}
+    monkeypatch.setattr("slipprinter.device.serial.Serial", lambda *a, **k: opened.update(args=a, kwargs=k) or object())
+    SlipPrinter.open("/dev/cu.usbserial-TEST01")
+    assert opened["args"] == ("/dev/cu.usbserial-TEST01", 9600)
+    assert opened["kwargs"]["xonxoff"] is True
+    assert "dsrdtr" not in opened["kwargs"] and "rtscts" not in opened["kwargs"]
 
 
-def test_creating_a_printer_does_not_open_the_port(monkeypatch):
-    opened = []
-    monkeypatch.setattr(connection.Serial, "open", lambda self, *a, **k: opened.append(self))
-    get_printer("/dev/cu.does-not-exist")
-    assert opened == []
-
-
-@pytest.mark.parametrize("module", ["slipprinter.cli", "print_check", "print_receipt"])
+@pytest.mark.parametrize("module", ["slipprinter.cli", "slipprinter.device", "slipprinter.library"])
 def test_importing_never_touches_the_serial_port(monkeypatch, module):
     def boom(*args, **kwargs):
         raise AssertionError("serial port touched at import time")
 
     monkeypatch.setattr(connection.list_ports, "comports", boom)
-    monkeypatch.setattr(connection.Serial, "open", boom)
+    monkeypatch.setattr("serial.Serial", boom)
     sys.modules.pop(module, None)
     importlib.import_module(module)

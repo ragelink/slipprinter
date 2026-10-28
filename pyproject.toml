@@ -5,8 +5,9 @@ description = "Configurable slip printing (checks, endorsements, anything) for t
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "python-escpos>=3.1",
+    "pillow>=10",
     "pyserial>=3.5",
+    "pyyaml>=6",
 ]
 
 [project.scripts]
@@ -14,6 +15,7 @@ slip = "slipprinter.cli:main"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4",
     "pytest>=8",
     "ruff>=0.6",
 ]

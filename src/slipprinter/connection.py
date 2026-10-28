@@ -6,7 +6,6 @@ USB-serial cables often leave DSR/CTS unwired, so hardware flow control stays of
 
 import os
 
-from escpos.printer import Serial
 from serial.tools import list_ports
 
 PORT_ENV = "SLIP_PRINTER_PORT"
@@ -39,8 +38,3 @@ def find_port() -> str:
             f"No USB-serial port found. Is the printer cable connected? Set {PORT_ENV} to override."
         )
     raise PortNotFoundError(f"Several USB-serial ports found ({', '.join(ports)}). Set {PORT_ENV} to pick one.")
-
-
-def get_printer(port: str | None = None) -> Serial:
-    """An escpos Serial printer. The port is only opened on first use."""
-    return Serial(port or find_port(), baudrate=BAUDRATE, xonxoff=True, dsrdtr=False)
