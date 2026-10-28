@@ -478,7 +478,7 @@ def render(template: Template, values: dict[str, Any], today: dt.date | None = N
         chunk += profile.LF
         bold = [s for s in segments if "bold" in s.style]
         if bold:
-            chunk += profile.OVERSTRIKE + _emit_line(template, bold) + profile.LF
+            chunk += profile.overstrike(opts.line_spacing) + _emit_line(template, bold) + profile.LF
         chunks.append(chunk)
         line += 1
     if opts.upside_down:

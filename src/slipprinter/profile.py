@@ -19,7 +19,7 @@ CELL_HALF_DOTS = {"5x7": 12, "7x7": 10}  # width of one column; the band is 420 
 BAND_HALF_DOTS = 420
 
 # ESC ! bits. "bold" isn't one: the printer has no emphasis, so it's done by
-# striking the line twice (see OVERSTRIKE).
+# striking the line twice (see overstrike()).
 STYLE_BITS = {"double_height": 0x10, "double_width": 0x20, "underline": 0x80}
 STYLES = (*STYLE_BITS, "bold")
 NOT_IN_PAGE_MODE = {"underline", "bold"}  # underline is ignored and reverse feed refused in page mode
@@ -46,8 +46,15 @@ INTERNATIONAL = {
 LINE_SPACING = 10  # 1/6" in the printer's 1/60" units (the power-on default)
 MIN_FEED = 8  # the shuttle head can't feed less than 8/60" per line
 
-# Back up one line to strike it again. Tuned on hardware in #9.
-OVERSTRIKE = ESC + b"e\x01"
+
+def overstrike(line_spacing: int) -> bytes:
+    """Reverse-feed exactly one line (ESC K, in 1/60") so it can be struck again.
+
+    Verified on paper: ESC K gives a single, darker line. ESC e n (reverse feed
+    n lines) and ESC J 0 between strikes both printed the copy on a new line.
+    """
+    return ESC + b"K" + bytes([line_spacing])
+
 
 PAGE_WIDTH_MAX = 210  # dots, across the band
 PAGE_HEIGHT_MAX = 480  # dots, along the slip
