@@ -218,3 +218,69 @@ def test_today_default_is_used(fake_printer, monkeypatch):
     transport = fake_printer(SLIP_IN, SLIP_IN, IDLE)
     assert main(["print", "check", "--set", "payee=Jane", "--set", "amount=1", "--yes"]) == 0
     assert b"01/02/2026" in transport.written
+
+
+# ---------------------------------------------------------------- printer actions
+
+
+def test_info_decodes_printer_id(monkeypatch, capsys):
+    class IdTransport(FakeTransport):
+        def write(self, data):
+            if data[:2] == b"\x1dI":
+                self.pending = bytes([{1: 0x02, 2: 0x00, 3: 0x41}[data[2]]])
+                return len(data)
+            return super().write(data)
+
+    transport = IdTransport(IDLE)
+    monkeypatch.setattr(cli, "open_printer", lambda: SlipPrinter(transport))
+    assert main(["info"]) == 0
+    out = capsys.readouterr().out
+    assert "Model: TM-U295 (ID 0x02)" in out and "no cutter" in out and "ROM version: 0x41" in out
+
+
+@pytest.mark.parametrize(
+    ("args", "state", "sent", "text"),
+    [
+        (["eject"], SLIP_IN, b"\x0c", "Ejected."),
+        (["release"], SLIP_IN, b"\x1bq", "Released."),
+        (["drawer"], IDLE, b"\x1bp\x00\x32\xfa", "Pulsed drawer pin 2."),
+        (["drawer", "--pin", "5", "--on", "20", "--off", "40"], IDLE, b"\x1bp\x01\x0a\x14", "pin 5"),
+        (["buttons", "disable"], IDLE, b"\x1bc5\x01", "Panel buttons disabled."),
+        (["buttons", "enable"], IDLE, b"\x1bc5\x00", "Panel buttons enabled."),
+        (["send", "ESC", "p", "0", "25", "250"], IDLE, b"\x1bp\x00\x19\xfa", "Sent 5 bytes."),
+        (["send", '"Hi"', "LF"], SLIP_IN, b"Hi\n", "Sent 3 bytes."),
+        (["send", "--force", '"Hi"'], IDLE, b"Hi", "Sent 2 bytes."),
+    ],
+)
+def test_printer_actions(fake_printer, capsys, args, state, sent, text):
+    transport = fake_printer(state)
+    assert main(args) == 0
+    assert bytes(transport.written) == sent
+    assert text in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("args", "state", "error"),
+    [
+        (["eject"], IDLE, "No slip inserted"),
+        (["send", '"Hi"'], IDLE, "--force"),
+        (["send", "GS", "V", "0"], SLIP_IN, "no cutter"),
+        (["drawer", "--on", "600"], IDLE, "2 to 510"),
+        (["drawer"], OFFLINE, "offline"),
+    ],
+)
+def test_printer_action_refusals_send_nothing(fake_printer, capsys, args, state, error):
+    transport = fake_printer(state)
+    assert main(args) == 2
+    assert error in capsys.readouterr().err
+    assert transport.written == b""
+
+
+def test_print_uses_the_template_finish(fake_printer, tmp_path, monkeypatch):
+    monkeypatch.setenv("SLIP_TEMPLATES", str(tmp_path))
+    (tmp_path / "kick.yaml").write_text(
+        "name: kick\nfinish: release\ndrawer: {pin: 2}\nfields: {a: {line: 0, col: 0, width: 3}}\n"
+    )
+    transport = fake_printer(SLIP_IN, SLIP_IN, IDLE)
+    assert main(["print", "kick", "--set", "a=x", "--yes"]) == 0
+    assert transport.written.endswith(b"\x1bq\x1bp\x00\x32\xfa")

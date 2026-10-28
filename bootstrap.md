@@ -30,7 +30,10 @@ src/slipprinter/
   connection.py    port detection
   status.py        decoding real-time status (DLE EOT)
   device.py        SlipPrinter: status, wait for slip, guarded print
-  profile.py       TM-U295 command table (only documented commands)
+  profile.py       TM-U295 command table: every documented command, plus unsupported ones and why
+  raw.py           Epson-notation parser for `slip send`, validated against the table
+  options.py       template-wide options: spacing, character sets, custom characters, eject, drawer
+  images.py        bit images (ESC *) from image files
   template.py      template schema, validation, render, preview
   words.py         amounts in words
   library.py       built-in + personal template lookup
@@ -38,6 +41,7 @@ src/slipprinter/
   web.py           local web UI server (`slip serve`); web/index.html is the page
   templates/       built-in templates
 tests/             pytest, one file per module; fakes.py scripts a printer
+docs/capabilities.md  every printer command and where it's exposed (kept in sync by a test)
 samples/           reference images and Epson command listings
 ```
 
