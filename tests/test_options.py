@@ -153,7 +153,7 @@ def logo(tmp_path):
 
 
 def test_image_renders_as_bit_image_bands_with_exact_feeds(logo):
-    t = tpl("name: t\nimages: [{line: 0, col: 1, path: logo.png}]\n", base_dir=logo)
+    t = tpl("name: t\nimages: [{line: 0, col: 1, path: logo.png, aspect: false}]\n", base_dir=logo)
     out = render(t, {})
     pad = bytes(6)  # one 5x7 column is 6 dots at single density
     band1 = ESC + b"*\x00\x10\x00" + pad + bytes([0xFF] * 5 + [0] * 5) + ESC + b"J\x08"
@@ -187,5 +187,5 @@ def test_invalid_images(logo, image, match):
 
 def test_too_wide_image_is_rejected(tmp_path):
     PILImage.new("L", (211, 8), 0).save(tmp_path / "wide.png")
-    with pytest.raises(TemplateError, match="fits 210"):
+    with pytest.raises(TemplateError, match="fits 210 .set a width"):
         tpl("name: t\nimages: [{line: 0, col: 0, path: wide.png}]\n", base_dir=tmp_path)
