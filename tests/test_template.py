@@ -99,6 +99,11 @@ fields:
     assert out == CP437 + MODE + page + MODE + b"hi" + MODE + b"\n" + b"\x0c"
 
 
+def test_rotated_columns_default_to_what_the_page_holds():
+    t = tpl("name: t\norientation: rotated\npage: {width: 210, height: 480}\nsize: {lines: 2}\n")
+    assert t.columns == 80  # 6 dots per 5x7 character down the page
+
+
 def test_codepage_is_selected_and_text_encoded():
     t = tpl("name: t\ncodepage: pc858\nfields:\n  a: {line: 0, col: 0, width: 5}\n")
     out = render(t, {"a": "5€"})
@@ -198,11 +203,13 @@ def test_optional_field_left_blank_prints_nothing():
         ("name: t\nfields: {a: {line: -1, col: 0, width: 1}}", "at least 0"),
         ("name: t\nfields: {a: {line: 0, col: 0, width: 1, fill: '**'}}", "single character"),
         ("name: t\norientation: rotated", "need 'page"),
+        ("name: t\norientation: rotated\npage: {width: 210, height: 360}\nsize: {lines: 2, columns: 61}",
+         "fits at most 60 columns"),
         ("name: t\norientation: rotated\npage: {width: 211, height: 10}\nsize: {lines: 1, columns: 5}",
          "at most 210"),
-        ("name: t\norientation: rotated\npage: {width: 10, height: 10}\nsize: {lines: 1, columns: 5}\n"
+        ("name: t\norientation: rotated\npage: {width: 10, height: 360}\nsize: {lines: 1, columns: 5}\n"
          "fields: {a: {line: 0, col: 0, width: 1, style: underline}}", "isn't possible in rotated"),
-        ("name: t\norientation: rotated\npage: {width: 10, height: 10}\nsize: {lines: 1, columns: 5}\n"
+        ("name: t\norientation: rotated\npage: {width: 10, height: 360}\nsize: {lines: 1, columns: 5}\n"
          "fields: {a: {line: 0, col: 0, width: 1, style: bold}}", "isn't possible in rotated"),
         ("name: t\ntext: [{line: 0, col: 0, text: '→'}]", "can't be printed"),
     ],

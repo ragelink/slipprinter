@@ -159,6 +159,14 @@ def columns_for(font: str, char_spacing: int = 0) -> int:
     return BAND_HALF_DOTS // (CELL_HALF_DOTS[font] + char_spacing)
 
 
+def rotated_columns(page_height: int, font: str = "5x7", char_spacing: int = 0) -> int:
+    """Columns along a rotated page: each character cell spans its width in dots down the page.
+
+    Measured on paper: a 360-dot page holds 60 columns of the 5x7 font (6 dots each).
+    """
+    return page_height * 2 // (CELL_HALF_DOTS[font] + char_spacing)
+
+
 def select_print_mode(font: str, styles: frozenset[str] = frozenset()) -> bytes:
     n = FONTS[font]
     for style in styles:

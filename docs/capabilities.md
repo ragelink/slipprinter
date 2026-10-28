@@ -67,8 +67,9 @@ Every command in Epson's TM-U295 specification (Rev. I), and where this project 
 
 ## Limits worth knowing
 
-- The print band is 65.8 mm wide: 35 columns in the 5x7 font, 42 in 7x7. Check fronts need `orientation: rotated`.
+- The print band is 65.8 mm wide: 35 columns in the 5x7 font, 42 in 7x7. Check fronts need `orientation: rotated`, where each 5x7 character spans 6 dots down the page: a 360-dot (6 in) page holds 60 columns.
 - Page mode (rotated layouts) ignores underline and refuses reverse feed, so `underline` and `bold` aren't available there.
 - The head can't feed less than 8/60" per line, so `line_spacing` is at least 8.
 - Verified on paper: bit images and custom characters (top dot in the MSB), 35 and 42 columns, underline, double width/height, PC437 accents, bold by `ESC K` overstrike, and dithering.
-- Not yet verified on paper: the international character tables and page-mode rotation.
+- Also verified: page-mode rotation and the 60-column rotated geometry, and XON/XOFF flow control on a 3.4 KB job.
+- Not yet verified on paper: the international character tables.
