@@ -31,7 +31,10 @@
   main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 20px; padding: 20px;
          max-width: 1200px; margin: 0 auto; }
   @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 16px; } }
-  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+            min-width: 0; }  /* let the wide preview scroll instead of widening the page */
+  header > * { min-width: 0; }
+  #status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
   input, select, textarea { width: 100%; padding: 8px 10px; font: inherit; color: var(--text);
          background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
@@ -105,7 +108,7 @@ function buildForm() {
   $("insert").textContent = current.insert;
   for (const f of current.fields) {
     const label = document.createElement("label");
-    label.textContent = f.label + (f.required ? "" : " (optional)");
+    label.textContent = f.label + (f.required || f.type === "words" ? "" : " (optional)");
     form.append(label);
     if (f.type === "words") {
       const note = document.createElement("div");
@@ -133,8 +136,8 @@ async function refreshPreview() {
   try {
     const data = await api("/api/preview", { template: current.name, values: values() });
     $("preview").textContent = data.preview;
-    $("error").textContent = "";
-    previewOk = true;
+    $("error").textContent = data.error || "";
+    previewOk = !data.error;
   } catch (e) {
     $("error").textContent = e.message;
     previewOk = false;
@@ -176,6 +179,7 @@ async function start() {
   templates = data.templates;
   $("template-errors").textContent = data.errors.join("\n");
   for (const t of templates) $("template").append(new Option(`${t.name}: ${t.description}`, t.name));
+  if (templates.some((t) => t.name === "check")) $("template").value = "check";
   $("template").addEventListener("change", buildForm);
   $("print").addEventListener("click", print);
   buildForm();

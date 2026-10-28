@@ -193,7 +193,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, {"state": job.state, "message": job.message})
             elif route == ("POST", "/api/preview"):
                 template, values = parse_fill_request(self.read_json())
-                self.send_json(HTTPStatus.OK, {"preview": self.fill(preview, template, values)})
+                layout = self.fill(lambda t, v: preview(t, v, partial=True), template, values)
+                try:
+                    render(template, values)
+                    problem = None
+                except FillError as e:
+                    problem = str(e)  # e.g. a required field still empty: show the layout anyway
+                self.send_json(HTTPStatus.OK, {"preview": layout, "error": problem})
             elif route == ("POST", "/api/print"):
                 template, values = parse_fill_request(self.read_json())
                 job = self.fill(render, template, values)
