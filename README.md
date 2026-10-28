@@ -69,6 +69,10 @@ text:
 
 Field types: `text`, `multiline` (with `height`), `date`, `money`, `words`. Styles: `bold`, `underline`, `double_width`, `double_height`. Fields that overlap or run off the slip are rejected when the template loads.
 
+Templates can also set `line_spacing`, `char_spacing`, `international`, `codepage`, `upside_down`, `insert_delay`, `eject`, `finish` (eject or release), `drawer`, custom `characters`, and `images`. See [docs/capabilities.md](docs/capabilities.md) for every printer command and where it's exposed, and `slip preview capabilities` for a demo of all of them.
+
+Printer actions: `slip info`, `slip eject`, `slip release`, `slip drawer`, `slip buttons enable|disable`, and `slip send` for raw commands in Epson notation (checked against what the TM-U295 supports).
+
 ## Printer setup
 
 - Connect a USB-to-RS232 cable through a **null-modem adapter** (the printer and the cable are both DTE, so TX/RX must be crossed).

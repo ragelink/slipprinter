@@ -20,7 +20,7 @@ from slipprinter.connection import PortNotFoundError
 from slipprinter.device import NoSlipError, PrinterNotReadyError, SlipPrinter
 from slipprinter.library import all_templates, get_template
 from slipprinter.status import StatusError
-from slipprinter.template import FillError, Template, TemplateError, preview, render
+from slipprinter.template import FillError, Template, TemplateError, finish, preview, render
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 MAX_BODY = 64 * 1024
@@ -71,7 +71,7 @@ class PrintService:
             "message": "; ".join(problems) or ("Slip inserted" if status.slip_present else "Insert a slip"),
         }
 
-    def start(self, job: bytes) -> None:
+    def start(self, job: bytes, finish: bytes) -> None:
         with self.lock:
             if self.busy:
                 raise RequestError(HTTPStatus.CONFLICT, "Another job is printing")
@@ -88,13 +88,13 @@ class PrintService:
                 printer.close()
                 raise RequestError(HTTPStatus.CONFLICT, str(e)) from None
             self.job = Job("printing", "Printing…")
-            self.thread = threading.Thread(target=self._run, args=(printer, job), daemon=True)
+            self.thread = threading.Thread(target=self._run, args=(printer, job, finish), daemon=True)
             self.thread.start()
 
-    def _run(self, printer: SlipPrinter, job: bytes) -> None:
+    def _run(self, printer: SlipPrinter, job: bytes, finish: bytes) -> None:
         try:
             with printer:
-                printer.print_job(job)
+                printer.print_job(job, finish=finish)
             self.job = Job("done", "Printed and ejected")
         except PRINTER_ERRORS as e:
             self.job = Job("failed", str(e))
@@ -197,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
             elif route == ("POST", "/api/print"):
                 template, values = parse_fill_request(self.read_json())
                 job = self.fill(render, template, values)
-                self.server.service.start(job)
+                self.server.service.start(job, finish(template))
                 self.send_json(HTTPStatus.ACCEPTED, {"state": "printing"})
             else:
                 raise RequestError(HTTPStatus.NOT_FOUND, "Not found")

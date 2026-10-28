@@ -5,6 +5,7 @@ description = "Configurable slip printing (checks, endorsements, anything) for t
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "pillow>=10",
     "pyserial>=3.5",
     "pyyaml>=6",
 ]

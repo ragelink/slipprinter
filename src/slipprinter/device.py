@@ -108,8 +108,10 @@ class SlipPrinter:
                 raise PrinterNotReadyError(f"Slip still in the printer after {timeout:g} s")
             self.sleep(self.poll_interval)
 
-    def print_job(self, job: bytes, *, slip_timeout: float = 0, eject_timeout: float = 120) -> None:
-        """Print `job` on the inserted slip, eject it, and wait for it to leave.
+    def print_job(
+        self, job: bytes, *, finish: bytes = EJECT, slip_timeout: float = 0, eject_timeout: float = 120
+    ) -> None:
+        """Print `job` on the inserted slip, then `finish` (eject by default), and wait for the slip to leave.
 
         With slip_timeout > 0, wait that long for a slip; otherwise one must already be in.
         """
@@ -120,6 +122,26 @@ class SlipPrinter:
             self.check_ready(status)
             if not status.slip_present:
                 raise NoSlipError("No slip inserted")
-        self.transport.write(INIT + STOP_AT_PAPER_END + job + EJECT)
+        self.transport.write(INIT + STOP_AT_PAPER_END + job + finish)
         self.transport.flush()
         self.wait_for_eject(eject_timeout)
+
+    def send(self, data: bytes) -> None:
+        """Send raw bytes as they are, once the printer is ready. Callers validate them first."""
+        self.check_ready(self.status())
+        self.transport.write(data)
+        self.transport.flush()
+
+    def identify(self) -> dict[str, int]:
+        """GS I: model ID, type ID and ROM version. These go through the buffer, so the printer must be idle."""
+        self.check_ready(self.status())
+        info = {}
+        for name, n in (("model", 1), ("type", 2), ("rom", 3)):
+            self.transport.reset_input_buffer()
+            self.transport.write(b"\x1dI" + bytes([n]))
+            self.transport.flush()
+            reply = self.transport.read(1)
+            if not reply:
+                raise StatusError(f"No answer to GS I {n}")
+            info[name] = reply[0]
+        return info

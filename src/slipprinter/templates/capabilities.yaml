@@ -1,0 +1,25 @@
+# Exercises every formatting capability on one slip, for verifying a printer
+# (issue #9). Uses only made-up text.
+name: capabilities
+description: Demo of every formatting option
+insert: Insert any slip face up.
+characters:
+  "~": [".....", "..#..", "...#.", "#####", "...#.", "..#..", "....."]
+images:
+  - {line: 0, col: 0, path: demo-logo.png}
+text:
+  - {line: 3, col: 0, text: "PLAIN     Pay to the order of"}
+  - {line: 4, col: 0, text: "BOLD      Pay to the order of", style: bold}
+  - {line: 5, col: 0, text: "UNDERLINE Pay to the order of", style: underline}
+  - {line: 6, col: 0, text: "DOUBLE W", style: double_width}
+  - {line: 7, col: 0, text: "DOUBLE H", style: double_height}
+  - {line: 9, col: 0, text: "QUAD", style: [double_width, double_height]}
+  - {line: 11, col: 0, text: "CUSTOM CHARACTER: ~"}
+  - {line: 12, col: 0, text: "PC437: ÇüéâäàåçêëèïîìÄÅ"}
+fields:
+  sample:
+    label: Your text
+    line: 14
+    col: 0
+    width: 35
+    default: Configured text prints here

@@ -13,12 +13,17 @@ from typing import Any
 import yaml
 
 from slipprinter import profile
+from slipprinter.images import Image, ImageError, grid_size, load_bands, render_image
+from slipprinter.options import OPTION_KEYS, OptionError, Options, parse_options, setup
+from slipprinter.options import finish as finish_options
 from slipprinter.words import AmountError, amount_in_words, format_money, parse_amount
 
 TYPES = ("text", "multiline", "date", "money", "words")
 FIELD_KEYS = {"label", "line", "col", "width", "height", "type", "required", "default", "format", "source", "fill",
               "align", "style"}  # fmt: skip
-TEMPLATE_KEYS = {"name", "description", "insert", "orientation", "font", "codepage", "size", "page", "fields", "text"}
+TEMPLATE_KEYS = {"name", "description", "insert", "orientation", "font", "codepage", "size", "page", "fields", "text",
+                 "images"} | OPTION_KEYS  # fmt: skip
+IMAGE_KEYS = {"line", "col", "path", "density", "threshold"}
 
 
 class TemplateError(ValueError):
@@ -78,6 +83,8 @@ class Template:
     page: dict[str, int] | None
     fields: tuple[Field, ...]
     static: tuple[StaticText, ...] = field(default=())
+    options: Options = Options()
+    images: tuple[Image, ...] = ()
 
     def field(self, key: str) -> Field:
         return next(f for f in self.fields if f.key == key)
@@ -148,7 +155,30 @@ def _cells(line: int, col: int, columns: int, rows: int) -> set[tuple[int, int]]
     return {(r, c) for r in range(line, line + rows) for c in range(col, col + columns)}
 
 
-def parse_template(raw: Any, origin: str = "template") -> Template:
+def _parse_images(raw: Any, base_dir: Path | None, orientation: str, upside_down: bool) -> tuple[Image, ...]:
+    images = []
+    for i, item in enumerate(raw or []):
+        where = f"image #{i + 1}"
+        _require(isinstance(item, dict) and isinstance(item.get("path"), str), where, "needs 'path', 'line', 'col'")
+        unknown = set(item) - IMAGE_KEYS
+        _require(not unknown, where, f"unknown keys: {', '.join(sorted(unknown))}")
+        _require(orientation == "normal", where, "images are only possible in normal layouts")
+        _require(not upside_down, where, "images can't be printed upside down")
+        _require(base_dir is not None, where, "image paths are relative to the template file")
+        _require(not Path(item["path"]).is_absolute(), where, "'path' must be relative to the template file")
+        density = item.get("density", "single")
+        _require(density in profile.IMAGE_WIDTH_MAX, where, "'density' must be single or double")
+        threshold = _int(item, "threshold", where, minimum=1, default=128)
+        _require(threshold <= 255, where, "'threshold' is at most 255")
+        try:
+            width, bands = load_bands(base_dir / item["path"], density, threshold)
+        except ImageError as e:
+            raise TemplateError(f"{where}: {e}") from None
+        images.append(Image(_int(item, "line", where), _int(item, "col", where), item["path"], density, width, bands))
+    return tuple(images)
+
+
+def parse_template(raw: Any, origin: str = "template", base_dir: Path | None = None) -> Template:
     _require(isinstance(raw, dict), origin, "must be a mapping")
     unknown = set(raw) - TEMPLATE_KEYS
     _require(not unknown, origin, f"unknown keys: {', '.join(sorted(unknown))}")
@@ -161,6 +191,10 @@ def parse_template(raw: Any, origin: str = "template") -> Template:
     _require(codepage in profile.CODEPAGES, origin, f"'codepage' must be one of {', '.join(profile.CODEPAGES)}")
     size = raw.get("size") or {}
     _require(isinstance(size, dict), origin, "'size' must be a mapping")
+    try:
+        options = parse_options(raw, font, orientation)
+    except OptionError as e:
+        raise TemplateError(f"{origin}: {e}") from None
 
     page = None
     if orientation == "rotated":
@@ -178,8 +212,8 @@ def parse_template(raw: Any, origin: str = "template") -> Template:
         _require("columns" in size and "lines" in size, origin, "rotated layouts need 'size: {lines, columns}'")
         columns = _int(size, "columns", "size", minimum=1)
     else:
-        columns = _int(size, "columns", "size", minimum=1, default=profile.COLUMNS[font])
-        most = profile.COLUMNS[font]
+        most = profile.columns_for(font, options.char_spacing)
+        columns = _int(size, "columns", "size", minimum=1, default=most)
         _require(columns <= most, "size", f"the {font} font fits at most {most} columns")
 
     raw_fields = raw.get("fields") or {}
@@ -198,13 +232,22 @@ def parse_template(raw: Any, origin: str = "template") -> Template:
             )
         )
 
-    lowest = max([f.line + f.rows for f in fields] + [s.line + 1 for s in static] + [1])
+    images = _parse_images(raw.get("images"), base_dir, orientation, options.upside_down)
+    image_boxes = []
+    for img in images:
+        img_columns, img_lines = grid_size(img, font, options.char_spacing, options.line_spacing)
+        _require(img.col + img_columns <= columns, f"image '{img.path}'", f"runs past the last column ({columns})")
+        image_boxes.append((f"image '{img.path}'", img.line, 0, columns, img_lines))  # images own whole lines
+
+    lowest = max([f.line + f.rows for f in fields] + [s.line + 1 for s in static] + [b[1] + b[4] for b in image_boxes]
+                 + [1])  # fmt: skip
     lines = _int(size, "lines", "size", minimum=1, default=lowest)
 
     keys = {f.key for f in fields}
     taken: dict[tuple[int, int], str] = {}
     boxes = [(f"field '{f.key}'", f.line, f.col, f.width, f.rows) for f in fields]
     boxes += [(f"text '{s.text}'", s.line, s.col, _span(s.text, s.style), _rows(s.style)) for s in static]
+    boxes += image_boxes
     for name, line, col, width, rows in boxes:
         _require(line + rows <= lines, name, f"runs past the last line ({lines})")
         _require(col + width <= columns, name, f"runs past the last column ({columns})")
@@ -230,6 +273,8 @@ def parse_template(raw: Any, origin: str = "template") -> Template:
         page=page,
         fields=fields,
         static=tuple(static),
+        options=options,
+        images=images,
     )
     for s in static:
         _encode(s.text, template, f"text '{s.text}'")
@@ -242,7 +287,7 @@ def load_template(path: Path) -> Template:
     except yaml.YAMLError as e:
         raise TemplateError(f"{path.name}: not valid YAML ({e})") from None
     try:
-        return parse_template(raw, path.name)
+        return parse_template(raw, path.name, path.parent)
     except (TemplateError, FillError) as e:
         if str(e).startswith(path.name):
             raise
@@ -258,11 +303,33 @@ def _rows(style: frozenset[str]) -> int:
 
 
 def _encode(text: str, template: Template, where: str) -> bytes:
+    national = template.options.international
+    if national != "usa":
+        # National characters print from the twelve ASCII positions they replace,
+        # so the ASCII characters at those positions can't be printed.
+        pairs = zip(profile.INTERNATIONAL_POSITIONS, profile.INTERNATIONAL[national][1], strict=True)
+        swaps = {n: a for a, n in pairs if a != n}
+        blocked = next((ch for ch in text if ch in swaps.values()), None)
+        if blocked:
+            raise FillError(f"{where}: '{blocked}' can't be printed with the {national} character set")
+        text = "".join(swaps.get(ch, ch) for ch in text)
     codec = profile.CODEPAGES[template.codepage][1]
-    try:
-        return text.encode(codec)
-    except UnicodeEncodeError as e:
-        raise FillError(f"{where}: '{e.object[e.start]}' can't be printed in code page {template.codepage}") from None
+    out = bytearray()
+    for ch in text:
+        try:
+            encoded = _encode_katakana(ch) if codec == "katakana" else ch.encode(codec)
+        except UnicodeEncodeError:
+            raise FillError(f"{where}: '{ch}' can't be printed in code page {template.codepage}") from None
+        out += encoded
+    return bytes(out)
+
+
+def _encode_katakana(ch: str) -> bytes:
+    """ASCII, plus half-width katakana at 0xA1-0xDF (JIS X 0201)."""
+    encoded = ch.encode("shift_jis")
+    if len(encoded) != 1:
+        raise UnicodeEncodeError("katakana", ch, 0, 1, "not a single-byte character")
+    return encoded
 
 
 # ---------------------------------------------------------------- filling in
@@ -376,29 +443,47 @@ def _emit_line(template: Template, segments: list[Segment]) -> bytes:
 
 
 def render(template: Template, values: dict[str, Any], today: dt.date | None = None) -> bytes:
-    """The job for the printer, without init or eject (the device layer adds those)."""
+    """The job for the printer, without init or the finish (the device layer adds those; see finish())."""
     rows = _segments(template, resolve(template, values, today))
+    opts = template.options
     out = bytearray(profile.select_codepage(template.codepage) + profile.select_print_mode(template.font))
+    out += setup(opts)
     if template.orientation == "rotated":
         page = template.page
         out += profile.enter_page_mode(page["width"], page["height"], page["direction"])
-    last = max(rows, default=-1)
+    images = {img.line: img for img in template.images}
+    last = max([*rows, *(img.line for img in template.images)], default=-1)
+    chunks = []  # one per printed line (or image), so upside-down can reverse them
     line = 0
     while line <= last:
+        if line in images:
+            img = images[line]
+            chunks.append(render_image(img, template.font, opts.char_spacing, opts.line_spacing))
+            line += grid_size(img, template.font, opts.char_spacing, opts.line_spacing)[1]
+            continue
         segments = rows.get(line, [])
-        out += _emit_line(template, segments)
+        chunk = _emit_line(template, segments)
         if any("double_height" in s.style for s in segments):
-            out += profile.feed(2 * profile.LINE_SPACING)
+            chunks.append(chunk + profile.feed(2 * opts.line_spacing))
             line += 2
             continue
-        out += profile.LF
+        chunk += profile.LF
         bold = [s for s in segments if "bold" in s.style]
         if bold:
-            out += profile.OVERSTRIKE + _emit_line(template, bold) + profile.LF
+            chunk += profile.OVERSTRIKE + _emit_line(template, bold) + profile.LF
+        chunks.append(chunk)
         line += 1
+    if opts.upside_down:
+        chunks.reverse()  # each line prints rotated 180°, so the slip reads correctly turned around
+    out += b"".join(chunks)
     if template.orientation == "rotated":
         out += profile.FF  # print the page and return to standard mode
     return bytes(out)
+
+
+def finish(template: Template) -> bytes:
+    """What follows the job: eject or release the slip, and the drawer pulse if any."""
+    return finish_options(template.options)
 
 
 def preview(template: Template, values: dict[str, Any], today: dt.date | None = None) -> str:
@@ -409,5 +494,12 @@ def preview(template: Template, values: dict[str, Any], today: dt.date | None = 
             text = " ".join(seg.text) + " " if "double_width" in seg.style else seg.text
             for i, ch in enumerate(text[: template.columns - seg.col]):
                 grid[line][seg.col + i] = ch
+    opts = template.options
+    for img in template.images:
+        img_columns, img_lines = grid_size(img, template.font, opts.char_spacing, opts.line_spacing)
+        for line in range(img.line, img.line + img_lines):
+            grid[line][img.col : img.col + img_columns] = "#" * img_columns
+    if opts.upside_down:
+        grid.reverse()
     border = "+" + "-" * template.columns + "+"
     return "\n".join([border, *("|" + "".join(row) + "|" for row in grid), border])

@@ -9,8 +9,10 @@ from slipprinter import __version__, profile
 from slipprinter.connection import PORT_ENV, PortNotFoundError, candidate_ports, find_port
 from slipprinter.device import NoSlipError, PrinterNotReadyError, SlipPrinter
 from slipprinter.library import all_templates, get_template, user_dir
+from slipprinter.raw import RawCommandError, validate
+from slipprinter.raw import parse as parse_raw
 from slipprinter.status import PrinterStatus, StatusError
-from slipprinter.template import FillError, Template, TemplateError, preview, render
+from slipprinter.template import FillError, Template, TemplateError, finish, preview, render
 
 # Swapped out in tests for a printer on a fake transport.
 open_printer: Callable[[], SlipPrinter] = SlipPrinter.open
@@ -100,8 +102,8 @@ def cmd_print(args: argparse.Namespace) -> int:
         return 1
     print(template.insert)
     with open_printer() as printer:
-        printer.print_job(job, slip_timeout=args.timeout)
-    print("Printed and ejected.")
+        printer.print_job(job, finish=finish(template), slip_timeout=args.timeout)
+    print("Printed and released." if template.options.finish == "release" else "Printed and ejected.")
     return 0
 
 
@@ -118,6 +120,62 @@ def cmd_ruler(args: argparse.Namespace) -> int:
     with open_printer() as printer:
         printer.print_job(ruler_job(args.font), slip_timeout=args.timeout)
     print("Printed and ejected.")
+    return 0
+
+
+MODELS = {0x02: "TM-U295"}
+
+
+def cmd_info(args: argparse.Namespace) -> int:
+    with open_printer() as printer:
+        info = printer.identify()
+    print(f"Model: {MODELS.get(info['model'], 'unknown')} (ID 0x{info['model']:02x})")
+    print(f"Type: 0x{info['type']:02x} ({'no cutter' if not info['type'] & 0x02 else 'cutter'})")
+    print(f"ROM version: 0x{info['rom']:02x}")
+    return 0
+
+
+def send_checked(data: bytes, *, needs_slip: bool, force: bool = False) -> None:
+    with open_printer() as printer:
+        status = printer.status()
+        printer.check_ready(status)
+        if needs_slip and not status.slip_present and not force:
+            raise NoSlipError(
+                "No slip inserted, so this would wait in the printer's buffer (use --force to send anyway)"
+            )
+        printer.send(data)
+
+
+def cmd_eject(args: argparse.Namespace) -> int:
+    send_checked(profile.FF, needs_slip=True)
+    print("Ejected.")
+    return 0
+
+
+def cmd_release(args: argparse.Namespace) -> int:
+    send_checked(profile.ESC + b"q", needs_slip=True)
+    print("Released.")
+    return 0
+
+
+def cmd_drawer(args: argparse.Namespace) -> int:
+    if not (2 <= args.on <= 510 and 2 <= args.off <= 510):
+        raise FillError("--on and --off are 2 to 510 ms")
+    send_checked(profile.drawer_pulse(args.pin, args.on, args.off), needs_slip=False)
+    print(f"Pulsed drawer pin {args.pin}.")
+    return 0
+
+
+def cmd_buttons(args: argparse.Namespace) -> int:
+    send_checked(profile.ESC + b"c5" + (b"\x00" if args.state == "enable" else b"\x01"), needs_slip=False)
+    print(f"Panel buttons {args.state}d.")
+    return 0
+
+
+def cmd_send(args: argparse.Namespace) -> int:
+    data = parse_raw(" ".join(args.command))
+    send_checked(data, needs_slip=validate(data), force=args.force)
+    print(f"Sent {len(data)} bytes.")
     return 0
 
 
@@ -165,6 +223,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=120, help="seconds to wait for a slip (default 120)")
     p.set_defaults(func=cmd_ruler)
 
+    sub.add_parser("info", help="show the printer's model, type and ROM version").set_defaults(func=cmd_info)
+    sub.add_parser("eject", help="eject the slip (FF)").set_defaults(func=cmd_eject)
+    sub.add_parser("release", help="release the slip without ejecting it (ESC q)").set_defaults(func=cmd_release)
+    p = sub.add_parser("drawer", help="pulse the cash drawer kick-out (ESC p)")
+    p.add_argument("--pin", type=int, choices=(2, 5), default=2)
+    p.add_argument("--on", type=int, default=100, help="pulse on time in ms (2-510, default 100)")
+    p.add_argument("--off", type=int, default=500, help="pulse off time in ms (2-510, default 500)")
+    p.set_defaults(func=cmd_drawer)
+    p = sub.add_parser("buttons", help="enable or disable the printer's panel buttons (ESC c 5)")
+    p.add_argument("state", choices=("enable", "disable"))
+    p.set_defaults(func=cmd_buttons)
+    p = sub.add_parser("send", help="send raw commands in Epson notation, e.g. slip send ESC p 0 50 250")
+    p.add_argument("command", nargs="+", help='e.g. ESC "@" or "Hello" LF or 0x1B 0x40')
+    p.add_argument("--force", action="store_true", help="send printing commands even with no slip inserted")
+    p.set_defaults(func=cmd_send)
+
     p = sub.add_parser("serve", help="run the web UI on localhost")
     p.add_argument("--port", type=int, default=8295, help="port on 127.0.0.1 (default 8295; 0 picks a free one)")
     p.add_argument("--open", action="store_true", help="open it in the browser")
@@ -176,7 +250,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (TemplateError, FillError, NoSlipError, PrinterNotReadyError, StatusError, PortNotFoundError) as e:
+    except (TemplateError, FillError, RawCommandError, NoSlipError, PrinterNotReadyError, StatusError,
+            PortNotFoundError) as e:  # fmt: skip
         print(f"slip: {e}", file=sys.stderr)
         return 2
     except (KeyboardInterrupt, EOFError):
