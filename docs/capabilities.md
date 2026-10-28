@@ -25,7 +25,7 @@ Every command in Epson's TM-U295 specification (Rev. I), and where this project 
 | `ESC D` | set tab stops | `slip send` (templates position with the column grid instead) |
 | `ESC F` | eject direction | template `eject: {reverse: true}` |
 | `ESC J` | print, feed n/60" | double-height lines and image bands |
-| `ESC K` | print, reverse feed n/60" | `slip send` |
+| `ESC K` | print, reverse feed n/60" | the `bold` style: back up exactly one line and strike it again (verified on paper) |
 | `ESC L` | enter page mode | `orientation: rotated` |
 | `ESC R` | international character set | template `international` |
 | `ESC T` | page-mode direction | rotated `page: {direction}` |
@@ -34,7 +34,7 @@ Every command in Epson's TM-U295 specification (Rev. I), and where this project 
 | `ESC c 4` | stop printing at paper end | always on for every job (both sensors) |
 | `ESC c 5` | enable/disable panel buttons | `slip buttons enable|disable` |
 | `ESC d` | print, feed n lines | `slip send` |
-| `ESC e` | print, reverse feed n lines | the `bold` style (overstrike) |
+| `ESC e` | print, reverse feed n lines | `slip send` (on the test printer it didn't reverse at all, so bold uses `ESC K`) |
 | `ESC f` | delay after slip insertion | template `insert_delay` |
 | `ESC p` | cash drawer pulse | template `drawer`, `slip drawer` |
 | `ESC q` | release the slip | template `finish: release`, `slip release` |
@@ -70,4 +70,5 @@ Every command in Epson's TM-U295 specification (Rev. I), and where this project 
 - The print band is 65.8 mm wide: 35 columns in the 5x7 font, 42 in 7x7. Check fronts need `orientation: rotated`.
 - Page mode (rotated layouts) ignores underline and refuses reverse feed, so `underline` and `bold` aren't available there.
 - The head can't feed less than 8/60" per line, so `line_spacing` is at least 8.
-- To verify on paper (issue #9): the bit order of custom characters, image alignment with the text grid, and the international character tables.
+- Verified on paper: bit images and custom characters (top dot in the MSB), 35 and 42 columns, underline, double width/height, PC437 accents, bold by `ESC K` overstrike, and dithering.
+- Not yet verified on paper: the international character tables and page-mode rotation.

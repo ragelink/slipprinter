@@ -65,8 +65,13 @@ fields:
 """)
     out = render(t, {"plain": "aa", "strong": "BB"})
     first = MODE + b"aa" + MODE + b"    " + MODE + b"BB" + MODE + b"\n"
-    second = ESC + b"e\x01" + b" " * 6 + MODE + b"BB" + MODE + b"\n"
+    second = ESC + b"K\x0a" + b" " * 6 + MODE + b"BB" + MODE + b"\n"
     assert out == CP437 + MODE + first + second
+
+
+def test_bold_reverse_feeds_by_the_template_line_spacing():
+    t = tpl("name: t\nline_spacing: 12\nfields:\n  b: {line: 0, col: 0, width: 2, style: bold}\n")
+    assert ESC + b"K\x0c" + MODE + b"BB" in render(t, {"b": "BB"})
 
 
 def test_double_height_feeds_two_lines_and_reserves_the_next():
