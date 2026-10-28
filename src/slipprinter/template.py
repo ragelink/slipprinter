@@ -241,7 +241,12 @@ def load_template(path: Path) -> Template:
         raw = yaml.safe_load(path.read_text())
     except yaml.YAMLError as e:
         raise TemplateError(f"{path.name}: not valid YAML ({e})") from None
-    return parse_template(raw, path.name)
+    try:
+        return parse_template(raw, path.name)
+    except (TemplateError, FillError) as e:
+        if str(e).startswith(path.name):
+            raise
+        raise TemplateError(f"{path.name}: {e}") from None
 
 
 def _span(text: str, style: frozenset[str]) -> int:

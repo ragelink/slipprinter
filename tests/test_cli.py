@@ -1,16 +1,47 @@
+import datetime as dt
 from types import SimpleNamespace
 
 import pytest
 
-from slipprinter import connection
+from slipprinter import cli, connection
 from slipprinter.cli import main
+from slipprinter.device import EJECT, SlipPrinter
+from tests.fakes import IDLE, JOB_QUEUED, OFFLINE, SLIP_IN, FakeClock, FakeTransport
 
 pytestmark = pytest.mark.always
+
+
+@pytest.fixture
+def fake_printer(monkeypatch):
+    """Point the CLI at a fake printer; returns a function that scripts its states."""
+    holder = {}
+
+    def script(*states):
+        clock = FakeClock()
+        transport = FakeTransport(*states)
+        holder["transport"] = transport
+        monkeypatch.setattr(
+            cli, "open_printer", lambda: SlipPrinter(transport, clock=clock, sleep=clock.sleep, poll_interval=1)
+        )
+        return transport
+
+    return script
+
+
+@pytest.fixture(autouse=True)
+def no_tty(monkeypatch):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
 
 
 def fake_ports(monkeypatch, *devices):
     monkeypatch.delenv(connection.PORT_ENV, raising=False)
     monkeypatch.setattr(connection.list_ports, "comports", lambda: [SimpleNamespace(device=d, vid=1) for d in devices])
+
+
+CHECK = ["print", "check", "--set", "payee=Jane Example", "--set", "amount=1234.56", "--set", "date=2026-10-28"]
+
+
+# ---------------------------------------------------------------- ports
 
 
 def test_ports_marks_the_selected_port(monkeypatch, capsys):
@@ -38,3 +69,152 @@ def test_version(capsys):
         main(["--version"])
     assert exit_info.value.code == 0
     assert capsys.readouterr().out.startswith("slip ")
+
+
+# ---------------------------------------------------------------- status
+
+
+@pytest.mark.parametrize(
+    ("state", "code", "text"),
+    [
+        (IDLE, 0, "Printer ready (no slip)"),
+        (SLIP_IN, 0, "Printer ready (slip inserted)"),
+        (OFFLINE, 1, "not ready: printer is offline"),
+        (JOB_QUEUED, 0, "a job is waiting in the printer's buffer"),
+    ],
+)
+def test_status(fake_printer, capsys, state, code, text):
+    fake_printer(state)
+    assert main(["status"]) == code
+    assert text in capsys.readouterr().out
+
+
+def test_status_when_printer_silent(monkeypatch, capsys):
+    transport = FakeTransport(silent=True)
+    monkeypatch.setattr(cli, "open_printer", lambda: SlipPrinter(transport))
+    assert main(["status"]) == 2
+    assert "null-modem" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- templates and preview
+
+
+def test_templates_lists_fields_and_user_dir(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("SLIP_TEMPLATES", str(tmp_path))
+    assert main(["templates"]) == 0
+    out = capsys.readouterr().out
+    assert "check: Personal check, front" in out
+    assert "amount_words" in out and "(from amount)" in out
+    assert "memo" in out and "(optional)" in out
+    assert str(tmp_path) in out
+
+
+def test_templates_reports_broken_personal_template(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("SLIP_TEMPLATES", str(tmp_path))
+    (tmp_path / "mine.yaml").write_text("name: mine\nfields: {a: {line: 0, col: 0, width: 99}}\n")
+    assert main(["templates"]) == 1
+    assert "! mine.yaml: field 'a': runs past the last column" in capsys.readouterr().out
+
+
+def test_preview_needs_no_printer(capsys, monkeypatch):
+    monkeypatch.setattr(cli, "open_printer", lambda: pytest.fail("preview opened the printer"))
+    assert main(["preview", "check", "--set", "payee=Jane Example", "--set", "amount=5"]) == 0
+    out = capsys.readouterr().out
+    assert "Jane Example" in out and "Five and 00/100" in out
+
+
+def test_preview_prompts_for_missing_fields_when_interactive(capsys, monkeypatch):
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    answers = iter(["Jane Example", "12"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    assert main(["preview", "check"]) == 0
+    assert "Twelve and 00/100" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- print
+
+
+def test_print_waits_for_slip_then_prints_and_ejects(fake_printer, capsys):
+    transport = fake_printer(IDLE, IDLE, SLIP_IN, SLIP_IN, IDLE)
+    assert main([*CHECK, "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert "Insert the check face up" in out
+    assert "Printed and ejected." in out
+    assert b"Jane Example" in transport.written
+    assert transport.written.endswith(b"\x0c" + EJECT)  # page mode print, then eject
+
+
+def test_print_validates_before_touching_printer(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "open_printer", lambda: pytest.fail("printer opened despite bad input"))
+    assert main(["print", "check", "--set", "payee=Jane", "--set", "amount=lots", "--yes"]) == 2
+    assert "not an amount" in capsys.readouterr().err
+
+
+def test_print_asks_for_confirmation(fake_printer, monkeypatch, capsys):
+    transport = fake_printer(SLIP_IN)
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+    assert main(CHECK) == 1
+    assert "Not printed." in capsys.readouterr().out
+    assert transport.written == b""
+
+
+def test_print_times_out_without_sending(fake_printer, capsys):
+    transport = fake_printer(IDLE)
+    assert main([*CHECK, "--yes", "--timeout", "3"]) == 2
+    assert "No slip inserted within 3 s" in capsys.readouterr().err
+    assert transport.written == b""
+
+
+def test_print_refuses_when_offline(fake_printer, capsys):
+    transport = fake_printer(OFFLINE)
+    assert main([*CHECK, "--yes"]) == 2
+    assert "offline" in capsys.readouterr().err
+    assert transport.written == b""
+
+
+@pytest.mark.parametrize(
+    ("args", "error"),
+    [
+        (["print", "nope", "--yes"], "No template named 'nope'"),
+        (["print", "check", "--set", "payee", "--yes"], "--set needs field=value"),
+        (["print", "check", "--set", "colour=red", "--yes"], "unknown fields: colour"),
+        (["print", "check", "--set", "amount=1", "--yes", "--no-input"], "Pay to the order of is required"),
+    ],
+)
+def test_print_input_errors(args, error, capsys):
+    assert main(args) == 2
+    assert error in capsys.readouterr().err
+
+
+def test_ctrl_c_while_waiting_sends_nothing(monkeypatch, capsys):
+    transport = FakeTransport(IDLE)
+
+    def interrupt(seconds):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "open_printer", lambda: SlipPrinter(transport, sleep=interrupt))
+    assert main([*CHECK, "--yes"]) == 130
+    assert transport.written == b""
+
+
+# ---------------------------------------------------------------- ruler
+
+
+@pytest.mark.parametrize(("font", "columns"), [("5x7", 35), ("7x7", 42)])
+def test_ruler_prints_full_width(fake_printer, font, columns):
+    transport = fake_printer(SLIP_IN, SLIP_IN, IDLE)
+    assert main(["ruler", "--font", font]) == 0
+    expected_ones = "".join(str(i % 10) for i in range(1, columns + 1)).encode()
+    assert expected_ones + b"\n" in transport.written
+
+
+def test_today_default_is_used(fake_printer, monkeypatch):
+    class FixedDate(dt.date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 1, 2)
+
+    monkeypatch.setattr("slipprinter.template.dt.date", FixedDate)
+    transport = fake_printer(SLIP_IN, SLIP_IN, IDLE)
+    assert main(["print", "check", "--set", "payee=Jane", "--set", "amount=1", "--yes"]) == 0
+    assert b"01/02/2026" in transport.written
