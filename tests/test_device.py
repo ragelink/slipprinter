@@ -7,9 +7,9 @@ from tests.fakes import ERROR, IDLE, JOB_QUEUED, OFFLINE, SLIP_IN, UNRECOVERABLE
 pytestmark = pytest.mark.always
 
 
-def printer(*states, silent=False):
+def printer(*states, silent=False, stuck=False):
     clock = FakeClock()
-    transport = FakeTransport(*states, silent=silent)
+    transport = FakeTransport(*states, silent=silent, stuck=stuck)
     return SlipPrinter(transport, clock=clock, sleep=clock.sleep, poll_interval=0.5), transport, clock
 
 
@@ -26,9 +26,15 @@ def test_silent_printer_explains_likely_cause():
 
 
 def test_print_sends_init_paper_end_stop_job_and_eject():
-    p, t, _ = printer(SLIP_IN, SLIP_IN, IDLE)
+    p, t, _ = printer(SLIP_IN)
     p.print_job(b"HELLO\n")
     assert bytes(t.written) == INIT + STOP_AT_PAPER_END + b"HELLO\n" + EJECT
+
+
+def test_print_finishes_even_if_a_long_sheet_still_covers_the_sensors():
+    p, t, _ = printer(SLIP_IN)  # the sheet never leaves the sensors
+    p.print_job(b"HELLO\n")
+    assert t.written.endswith(EJECT)
 
 
 @pytest.mark.parametrize(
@@ -70,21 +76,37 @@ def test_wait_for_slip_fails_fast_when_printer_breaks():
 
 
 def test_print_with_slip_timeout_waits_then_prints():
-    p, t, _ = printer(IDLE, SLIP_IN, SLIP_IN, IDLE)
+    p, t, _ = printer(IDLE, SLIP_IN)
     p.print_job(b"X", slip_timeout=5)
     assert t.written.endswith(b"X" + EJECT)
 
 
-def test_print_fails_if_slip_never_leaves():
-    p, _, _ = printer(SLIP_IN)
-    with pytest.raises(PrinterNotReadyError, match="still in the printer"):
-        p.print_job(b"X", eject_timeout=3)
+def test_print_times_out_if_the_job_never_finishes():
+    p, _, clock = printer(SLIP_IN, stuck=True)
+    with pytest.raises(PrinterNotReadyError, match="didn't finish within 3 s"):
+        p.print_job(b"X", job_timeout=3)
+    assert clock.now >= 3
 
 
-def test_print_reports_error_during_job():
-    p, _, _ = printer(SLIP_IN, {**ERROR, 5: 0x12})
-    with pytest.raises(PrinterNotReadyError, match="error"):
-        p.print_job(b"X")
+def test_print_reports_why_a_job_stalled():
+    p, _, _ = printer(SLIP_IN, {**ERROR, 5: 0x12}, stuck=True)
+    with pytest.raises(PrinterNotReadyError, match="didn't finish.*printer error"):
+        p.print_job(b"X", job_timeout=1)
+
+
+def test_status_bytes_arriving_while_waiting_are_not_mistaken_for_completion():
+    p, t, _ = printer(SLIP_IN, stuck=True)
+    original = t.write
+
+    def write(data):
+        written = original(data)
+        if data == b"\x1bv":
+            t.pending = b"\x16"  # a late DLE EOT reply, not the ESC v answer
+        return written
+
+    t.write = write
+    with pytest.raises(PrinterNotReadyError, match="didn't finish"):
+        p.wait_for_job(1)
 
 
 def test_context_manager_closes_transport():
