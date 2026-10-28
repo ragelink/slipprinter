@@ -1,0 +1,19 @@
+name: note
+description: Free text on any slip
+insert: Insert the slip face up.
+orientation: normal
+fields:
+  date:
+    line: 0
+    col: 0
+    width: 10
+    type: date
+    default: today
+    required: false
+  body:
+    label: Text
+    line: 2
+    col: 0
+    width: 35
+    height: 30
+    type: multiline

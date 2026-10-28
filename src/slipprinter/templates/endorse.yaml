@@ -1,0 +1,26 @@
+# Check back endorsement. Prints across the band, inside the 1.5 in
+# endorsement area at the check's trailing edge (calibrated in issue #9).
+name: endorse
+description: Check back, restrictive endorsement
+insert: Turn the check face down, leading edge (the left end of the front) first.
+orientation: normal
+size: {lines: 6}
+text:
+  - {line: 0, col: 0, text: FOR DEPOSIT ONLY, style: bold}
+fields:
+  name:
+    label: To the account of
+    line: 2
+    col: 0
+    width: 35
+  account:
+    label: Account
+    line: 3
+    col: 0
+    width: 35
+    required: false
+  bank:
+    line: 4
+    col: 0
+    width: 35
+    required: false
