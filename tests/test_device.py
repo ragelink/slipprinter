@@ -114,3 +114,80 @@ def test_context_manager_closes_transport():
     with p:
         pass
     assert t.closed
+
+
+# ---------------------------------------------------------------- flow control
+
+
+class FlowTransport(FakeTransport):
+    """Sends XOFF once `xoff_after` bytes of data have arrived, then XON after `hold` polls."""
+
+    def __init__(self, *states, xoff_after=40, hold=3, **kwargs):
+        super().__init__(*states, **kwargs)
+        self.xoff_after, self.hold, self.polls_while_off, self.off = xoff_after, hold, 0, False
+        self.writes_while_off = 0
+
+    def write(self, data):
+        if self.off:
+            self.writes_while_off += 1
+        written = super().write(data)
+        if not self.off and self.xoff_after is not None and len(self.written) >= self.xoff_after:
+            self.pending += b"\x13"
+            self.off, self.xoff_after = True, None
+        return written
+
+    @property
+    def in_waiting(self):
+        if self.off and not self.pending:
+            self.polls_while_off += 1
+            if self.polls_while_off > self.hold:
+                self.pending, self.off = b"\x11", False
+        return len(self.pending)
+
+
+def paced(transport):
+    clock = FakeClock()
+    return SlipPrinter(transport, clock=clock, sleep=clock.sleep, poll_interval=0.5), clock
+
+
+def test_writing_pauses_on_xoff_until_xon():
+    t = FlowTransport(SLIP_IN)
+    p, _ = paced(t)
+    data = bytes(range(32, 127)) * 2
+    p.write_paced(data)
+    assert bytes(t.written) == data  # everything arrives, in order
+    assert t.writes_while_off == 0  # nothing was sent between XOFF and XON
+    assert t.polls_while_off > t.hold
+
+
+def test_a_printer_stuck_in_xoff_times_out():
+    t = FlowTransport(SLIP_IN, hold=10**9)
+    p, clock = paced(t)
+    with pytest.raises(PrinterNotReadyError, match="stopped accepting data for 5 s"):
+        p.write_paced(bytes(100), stall_timeout=5)
+    assert len(t.written) < 100 and clock.now >= 5
+
+
+def test_large_job_is_sent_in_small_chunks():
+    t = FakeTransport(SLIP_IN)
+    sizes = []
+    original = t.write
+    t.write = lambda data: sizes.append(len(data)) or original(data)
+    p, _ = paced(t)
+    p.write_paced(bytes(100))
+    assert max(sizes) <= 16 and sum(sizes) == 100
+
+
+def test_status_query_skips_flow_control_bytes():
+    t = FakeTransport(SLIP_IN)
+    original = t.write
+
+    def write(data):
+        written = original(data)
+        if data[:2] == b"\x10\x04":
+            t.pending = b"\x11\x13" + t.pending  # XON/XOFF arrive ahead of the answer
+        return written
+
+    t.write = write
+    p, _ = paced(t)
+    assert p.status().slip_present

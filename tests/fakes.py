@@ -36,6 +36,10 @@ class FakeTransport:
             self.written += data
         return len(data)
 
+    @property
+    def in_waiting(self):
+        return len(self.pending)
+
     def read(self, size=1):
         if not self.pending and self.job_pending and not self.stuck:
             self.pending, self.job_pending = b"\x00", False  # ESC v answer: the job is done

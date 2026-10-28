@@ -19,9 +19,15 @@ INIT = b"\x1b@"
 STOP_AT_PAPER_END = b"\x1bc4\x30"
 EJECT = b"\x0c"
 PAPER_STATUS = b"\x1bv"  # answered only after everything before it has printed
+# The printer's flow control: it sends XOFF when its 512-byte buffer is nearly full and
+# XON when there's room. USB-serial drivers don't reliably honor these, so we do it here.
+XON, XOFF = 0x11, 0x13
+CHUNK = 16  # small writes, so little is in flight when an XOFF arrives
 
 
 class Transport(Protocol):
+    @property
+    def in_waiting(self) -> int: ...
     def write(self, data: bytes) -> int | None: ...
     def read(self, size: int = 1) -> bytes: ...
     def flush(self) -> None: ...
@@ -53,7 +59,7 @@ class SlipPrinter:
 
     @classmethod
     def open(cls, port: str | None = None) -> "SlipPrinter":
-        transport = serial.Serial(port or find_port(), BAUDRATE, xonxoff=True, timeout=1, write_timeout=10)
+        transport = serial.Serial(port or find_port(), BAUDRATE, timeout=1, write_timeout=10)
         return cls(transport)
 
     def close(self) -> None:
@@ -70,6 +76,8 @@ class SlipPrinter:
         self.transport.write(DLE_EOT + bytes([n]))
         self.transport.flush()
         reply = self.transport.read(1)
+        while reply and reply[0] in (XON, XOFF):  # flow control, not the answer
+            reply = self.transport.read(1)
         if not reply:
             raise StatusError(f"No answer to DLE EOT {n}. Is the printer on, and is the null-modem adapter in place?")
         return reply[0]
@@ -118,6 +126,29 @@ class SlipPrinter:
         detail = f": {'; '.join(problems)}" if problems else ""
         raise PrinterNotReadyError(f"Job didn't finish within {timeout:g} s{detail}")
 
+    def write_paced(self, data: bytes, stall_timeout: float = 60) -> None:
+        """Send `data` in small chunks, pausing whenever the printer sends XOFF until it sends XON."""
+        paused, stalled_since, i = False, None, 0
+        while True:
+            waiting = self.transport.in_waiting
+            for byte in self.transport.read(waiting) if waiting else b"":
+                if byte == XOFF:
+                    paused = True
+                elif byte == XON:
+                    paused = False
+            if paused:
+                stalled_since = self.clock() if stalled_since is None else stalled_since
+                if self.clock() - stalled_since >= stall_timeout:
+                    raise PrinterNotReadyError(f"Printer stopped accepting data for {stall_timeout:g} s")
+                self.sleep(self.poll_interval / 10)
+                continue
+            stalled_since = None
+            if i >= len(data):
+                return
+            self.transport.write(data[i : i + CHUNK])
+            self.transport.flush()
+            i += CHUNK
+
     def print_job(
         self, job: bytes, *, finish: bytes = EJECT, slip_timeout: float = 0, job_timeout: float = 120
     ) -> None:
@@ -133,15 +164,13 @@ class SlipPrinter:
             if not status.slip_present:
                 raise NoSlipError("No slip inserted")
         self.transport.reset_input_buffer()
-        self.transport.write(INIT + STOP_AT_PAPER_END + job + finish)
-        self.transport.flush()
+        self.write_paced(INIT + STOP_AT_PAPER_END + job + finish)
         self.wait_for_job(job_timeout)
 
     def send(self, data: bytes) -> None:
         """Send raw bytes as they are, once the printer is ready. Callers validate them first."""
         self.check_ready(self.status())
-        self.transport.write(data)
-        self.transport.flush()
+        self.write_paced(data)
 
     def identify(self) -> dict[str, int]:
         """GS I: model ID, type ID and ROM version. These go through the buffer, so the printer must be idle."""
