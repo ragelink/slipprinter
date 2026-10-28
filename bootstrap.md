@@ -72,7 +72,7 @@ Tests never need the printer unless they're `debug`. Use the fake transport or e
 
 ## Hardware facts
 
-- Serial: 9600 8N1, XON/XOFF. Hardware flow control off, because common USB-serial cables leave DSR/CTS unwired.
+- Serial: 9600 8N1, XON/XOFF. Hardware flow control off, because common USB-serial cables leave DSR/CTS unwired. XON/XOFF is handled in `SlipPrinter.write_paced`, not by the driver: the USB-serial driver ignored XOFF and a 1.1 KB image overran the 512-byte buffer.
 - The printer and a USB-serial cable are both DTE, so a **null-modem adapter** is required between them.
 - Slip only: no roll paper, no cutter. Eject with form feed (`0x0C`); never send `GS V`.
 - A job sent with no slip inserted waits in the printer's buffer and prints onto whatever goes in next, so print only after a slip is detected.

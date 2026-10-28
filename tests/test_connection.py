@@ -51,13 +51,13 @@ def test_several_ports_is_an_error_naming_them(monkeypatch):
         find_port()
 
 
-def test_printer_opens_9600_8n1_with_xonxoff(monkeypatch):
+def test_printer_opens_9600_8n1_with_flow_control_handled_in_code(monkeypatch):
     opened = {}
     monkeypatch.setattr("slipprinter.device.serial.Serial", lambda *a, **k: opened.update(args=a, kwargs=k) or object())
     SlipPrinter.open("/dev/cu.usbserial-TEST01")
     assert opened["args"] == ("/dev/cu.usbserial-TEST01", 9600)
-    assert opened["kwargs"]["xonxoff"] is True
-    assert "dsrdtr" not in opened["kwargs"] and "rtscts" not in opened["kwargs"]
+    # XON/XOFF is handled by SlipPrinter.write_paced; the driver's (and hardware) flow control stay off
+    assert not {"xonxoff", "dsrdtr", "rtscts"} & set(opened["kwargs"])
 
 
 @pytest.mark.parametrize("module", ["slipprinter.cli", "slipprinter.device", "slipprinter.library"])
