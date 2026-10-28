@@ -15,7 +15,8 @@ class FakeTransport:
     def __init__(self, *states, silent=False, stuck=False):
         self.states = list(states) or [IDLE]
         self.silent = silent
-        self.stuck = stuck  # the job never finishes, so ESC v never gets an answer
+        self.stuck = stuck  # while True the job doesn't finish, so ESC v goes unanswered
+        self.job_pending = False
         self.written = bytearray()
         self.pending = b""
         self.queries = 0
@@ -30,12 +31,14 @@ class FakeTransport:
             self.pending = b"" if self.silent else bytes([self.state[data[2]]])
             self.queries += 1
         elif data == b"\x1bv":
-            self.pending = b"" if self.stuck or self.silent else b"\x00"  # buffered status: job done
+            self.job_pending = not self.silent
         else:
             self.written += data
         return len(data)
 
     def read(self, size=1):
+        if not self.pending and self.job_pending and not self.stuck:
+            self.pending, self.job_pending = b"\x00", False  # ESC v answer: the job is done
         reply, self.pending = self.pending[:size], self.pending[size:]
         return reply
 
