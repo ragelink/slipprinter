@@ -26,10 +26,17 @@ Fixtures use obviously fake data (`Jane Example`, account and routing numbers st
 ## Layout
 
 ```
-src/slipprinter/   the package (console script: `slip`)
-tests/             pytest, one file per module
-print_check.py     legacy scripts, kept working until the `slip` CLI replaces them
-print_receipt.py
+src/slipprinter/
+  connection.py    port detection
+  status.py        decoding real-time status (DLE EOT)
+  device.py        SlipPrinter: status, wait for slip, guarded print
+  profile.py       TM-U295 command table (only documented commands)
+  template.py      template schema, validation, render, preview
+  words.py         amounts in words
+  library.py       built-in + personal template lookup
+  cli.py           the `slip` command
+  templates/       built-in templates
+tests/             pytest, one file per module; fakes.py scripts a printer
 samples/           reference images and Epson command listings
 ```
 
