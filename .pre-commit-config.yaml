@@ -17,3 +17,9 @@ repos:
         language: system
         pass_filenames: false
         types: [python]
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: bash -c 'cd slipd && cargo fmt --check'
+        language: system
+        pass_filenames: false
+        types: [rust]

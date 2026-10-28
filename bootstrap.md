@@ -43,6 +43,9 @@ src/slipprinter/
 tests/             pytest, one file per module; fakes.py scripts a printer
 docs/capabilities.md  every printer command and where it's exposed (kept in sync by a test)
 samples/           reference images and Epson command listings
+slipd/             Rust workspace for the print server
+  slip-core/       serial link, status, raster to bit images (mirrors device.py, status.py, images.py)
+    tests/fixtures/  job bytes shared with tests/test_rust_fixtures.py, so both sides stay identical
 ```
 
 ## Toolchain
@@ -53,6 +56,7 @@ samples/           reference images and Epson command listings
 | Format and lint | Ruff (`make format`, `make lint`), zero warnings |
 | Secrets and PII | gitleaks (`make scan`), pre-commit (`make hooks`) |
 | Tests | pytest with tier markers |
+| Rust | `cargo` in `slipd/`: `make rust-format`, `make rust-lint` (fmt and clippy, zero warnings), `make rust-test`; `Cargo.lock` is committed |
 
 Docker is deliberately not used: Docker Desktop on macOS can't pass a USB-serial device through to a container, and this tool exists to drive a serial printer on the host.
 
@@ -67,6 +71,8 @@ Every test carries exactly one tier marker:
 | `rarely` | nightly, before release | slow or wide matrix |
 | `edge` | before release | expensive or exotic |
 | `debug` | only by name: `make test-debug T=<name>` | diagnostics and tests that need the real printer |
+
+Rust unit tests are `always` tier; the real-paper check is `cargo run --example test_raster` in `slipd/`.
 
 Tests never need the printer unless they're `debug`. Use the fake transport or escpos `Dummy` to capture output. Rendering is tested byte-for-byte.
 

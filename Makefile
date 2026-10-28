@@ -1,4 +1,4 @@
-.PHONY: install hooks scan lint format test test-pr test-nightly test-release test-debug
+.PHONY: install hooks scan lint format test test-pr test-nightly test-release test-debug rust-lint rust-format rust-test
 
 install:
 	uv sync
@@ -32,3 +32,12 @@ test-release:
 
 test-debug:
 	uv run pytest -m debug -k "$(T)"
+
+rust-lint:
+	cd slipd && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+
+rust-format:
+	cd slipd && cargo fmt
+
+rust-test:
+	cd slipd && cargo test
