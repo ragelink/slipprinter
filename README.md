@@ -1,6 +1,6 @@
 # CheckPrinter
 
-CheckPrinter is a Python utility to print checks using an ESC/POS compatible printer. The program prompts the user for the necessary details (date, payee, amount, and amount in words) and prints the check with the specified details in the correct positions. This is optimized for the EPSON TM-U295P Slip Printer but should work for most ESC/POS systems.
+CheckPrinter is a Python utility to print checks using an ESC/POS compatible printer. The program prompts the user for the necessary details (date, payee, amount, and amount in words) and prints the check with the specified details in the correct positions. This is optimized for the EPSON TM-U295 (serial) Slip Printer but should work for most ESC/POS systems.
 
 _*This is a work in progress, with current limited testing, please use at your own risk :-)*_
 
@@ -14,37 +14,32 @@ _*This is a work in progress, with current limited testing, please use at your o
 
 - Python 3.x
 - `python-escpos` library
-- `pyusb` library
-- ESC/POS compatible printer
+- `pyserial` library
+- ESC/POS compatible serial printer
+- USB-to-RS232 cable plus a null-modem adapter (the printer and the cable are both DTE, so TX/RX must be crossed)
 
 ## Installation
 
-1. Clone the repository:
+Requires [uv](https://docs.astral.sh/uv/).
 
-    ```sh
-    git clone https://github.com/yourusername/checkprinter.git
-    cd checkprinter
-    ```
+```sh
+git clone https://github.com/ragelink/slipprinter.git
+cd slipprinter
+uv sync
+```
 
-2. Create and activate a virtual environment:
+Check that the printer's USB-serial port is detected (`*` marks the one that will be used):
 
-    ```sh
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
-
-3. Install the required packages:
-
-    ```sh
-    pip install -r requirements.txt
-    ```
+```sh
+uv run slip ports
+```
 
 ## Usage
 
 1. Run the `print_check.py` script:
 
     ```sh
-    python print_check.py
+    uv run python print_check.py
     ```
 
 2. Follow the prompts to enter the check details:
@@ -60,16 +55,17 @@ _*This is a work in progress, with current limited testing, please use at your o
 
 ## Customization
 
-- **Printer Setup**: Update the USB `idVendor` and `idProduct` values in `print_check.py` to match your printer model.
+- **Printer Setup**: The USB-serial port is detected automatically; set `SLIP_PRINTER_PORT` to override it. Line settings (9600 8N1, XON/XOFF) live in `src/slipprinter/connection.py` and must match the printer's DIP switches, which the self-test prints (insert a slip, power off, hold RELEASE while powering on).
 - **Positioning**: Adjust the positioning values in the `print_check` function to match the layout of your check template.
 
 ## Testing
 
-Run the tests to ensure the script runs correctly:
-
 ```sh
-python -m unittest test_print_check.py
+make lint   # ruff format + check
+make test   # fast tests, no printer needed
 ```
+
+See [bootstrap.md](bootstrap.md) for test tiers and repo conventions.
 
 Contributing
 

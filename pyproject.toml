@@ -1,0 +1,45 @@
+[project]
+name = "slipprinter"
+version = "0.1.0"
+description = "Configurable slip printing (checks, endorsements, anything) for the Epson TM-U295"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-escpos>=3.1",
+    "pyserial>=3.5",
+]
+
+[project.scripts]
+slip = "slipprinter.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/slipprinter"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-m 'not debug' --strict-markers"
+markers = [
+    "always: fast, deterministic, no hardware; runs on every local run and CI",
+    "sometimes: integration tests; runs on every PR",
+    "rarely: slow or wide matrix; nightly and before release",
+    "edge: expensive or exotic; before release, on demand",
+    "debug: diagnostics, including tests that need the real printer; run only by name",
+]
