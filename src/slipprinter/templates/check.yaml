@@ -1,27 +1,29 @@
 # Personal check front (6 x 2.75 in). The print band is narrower than a check,
 # so this prints in page mode with the text rotated to run along the check.
-# Positions are provisional until calibrated on real checks (issue #9).
+# 60 columns: a rotated 5x7 character spans 6 dots of the 360-dot page (measured
+# on paper). Field positions are provisional until measured on a voided check with
+# `slip ruler --rotated` (issue #9).
 name: check
 description: Personal check, front
 insert: Insert the check face up, left edge first.
 orientation: rotated
 page: {width: 210, height: 360, direction: 1}
-size: {lines: 14, columns: 72}
+size: {lines: 14}
 fields:
   date:
     line: 2
-    col: 52
-    width: 14
+    col: 46
+    width: 12
     type: date
     default: today
   payee:
     label: Pay to the order of
     line: 5
-    col: 10
-    width: 40
+    col: 8
+    width: 34
   amount:
     line: 5
-    col: 56
+    col: 45
     width: 14
     type: money
     fill: "*"
@@ -29,7 +31,7 @@ fields:
     label: Amount in words
     line: 7
     col: 2
-    width: 62
+    width: 57
     type: words
     source: amount
     fill: "*"

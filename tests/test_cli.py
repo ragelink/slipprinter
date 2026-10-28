@@ -208,6 +208,15 @@ def test_ruler_prints_full_width(fake_printer, font, columns):
     assert expected_ones + b"\n" in transport.written
 
 
+def test_rotated_ruler_prints_in_page_mode(fake_printer):
+    transport = fake_printer(SLIP_IN)
+    assert main(["ruler", "--rotated"]) == 0
+    written = bytes(transport.written)
+    assert b"\x1bL\x1bW\x00\x00\x00\x00\xd2\x00\x68\x01\x1bT\x01" in written  # 210 x 360, direction 1
+    ones = "".join(str(i % 10) for i in range(1, 61)).encode()
+    assert ones + b"\n" in written and b"\n15\n\x0c" in written  # 60 columns, lines to 15, then print the page
+
+
 def test_today_default_is_used(fake_printer, monkeypatch):
     class FixedDate(dt.date):
         @classmethod

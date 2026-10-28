@@ -112,18 +112,26 @@ def cmd_print(args: argparse.Namespace) -> int:
     return 0
 
 
-def ruler_job(font: str) -> bytes:
-    columns = profile.COLUMNS[font]
+def ruler_job(font: str, rotated_height: int | None = None) -> bytes:
+    """Column digits (tens over ones), then numbered lines. Rotated: the same, in page mode."""
+    if rotated_height is None:
+        columns, line_count = profile.COLUMNS[font], 20
+    else:
+        columns, line_count = profile.rotated_columns(rotated_height, font), 16
     tens = "".join(str(i // 10) for i in range(1, columns + 1))
     ones = "".join(str(i % 10) for i in range(1, columns + 1))
-    lines = [tens, ones] + [f"{n:02d}" for n in range(2, 20)]
-    return profile.select_print_mode(font) + "\n".join(lines).encode() + b"\n"
+    lines = [tens, ones] + [f"{n:02d}" for n in range(2, line_count)]
+    body = profile.select_print_mode(font) + "\n".join(lines).encode() + b"\n"
+    if rotated_height is None:
+        return body
+    page = profile.enter_page_mode(profile.PAGE_WIDTH_MAX, rotated_height, 1)
+    return profile.select_print_mode(font) + page + body + profile.FF
 
 
 def cmd_ruler(args: argparse.Namespace) -> int:
     print("Insert a slip face up.")
     with open_printer() as printer:
-        printer.print_job(ruler_job(args.font), slip_timeout=args.timeout)
+        printer.print_job(ruler_job(args.font, args.rotated), slip_timeout=args.timeout)
     print("Printed and ejected.")
     return 0
 
@@ -248,6 +256,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("ruler", help="print a column/line ruler for measuring layouts")
     p.add_argument("--font", choices=sorted(profile.FONTS), default="5x7")
+    p.add_argument("--rotated", type=int, nargs="?", const=360, metavar="HEIGHT",
+                   help="rotated (page mode) ruler for layouts like the check front; page height in dots, "
+                        "default 360 (6 in)")  # fmt: skip
     p.add_argument("--timeout", type=float, default=120, help="seconds to wait for a slip (default 120)")
     p.set_defaults(func=cmd_ruler)
 

@@ -212,8 +212,10 @@ def parse_template(raw: Any, origin: str = "template", base_dir: Path | None = N
         _require(page["width"] <= profile.PAGE_WIDTH_MAX, "page", f"width is at most {profile.PAGE_WIDTH_MAX} dots")
         _require(page["height"] <= profile.PAGE_HEIGHT_MAX, "page", f"height is at most {profile.PAGE_HEIGHT_MAX} dots")
         _require(page["direction"] in (0, 1, 2, 3), "page", "direction must be 0-3")
-        _require("columns" in size and "lines" in size, origin, "rotated layouts need 'size: {lines, columns}'")
-        columns = _int(size, "columns", "size", minimum=1)
+        _require("lines" in size, origin, "rotated layouts need 'size: {lines}'")
+        most = profile.rotated_columns(page["height"], font, options.char_spacing)
+        columns = _int(size, "columns", "size", minimum=1, default=most)
+        _require(columns <= most, "size", f"a {page['height']}-dot rotated page fits at most {most} columns")
     else:
         most = profile.columns_for(font, options.char_spacing)
         columns = _int(size, "columns", "size", minimum=1, default=most)
