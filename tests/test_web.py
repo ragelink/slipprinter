@@ -175,13 +175,11 @@ def test_print_runs_as_a_job_and_reports_done(app):
 @pytest.mark.sometimes
 def test_second_print_while_busy_is_a_conflict(app):
     call, state, server = app
-    release = threading.Event()
-    state["states"] = [SLIP_IN]  # the slip never leaves until released
 
     def open_printer():
-        transport = FakeTransport(SLIP_IN)
+        transport = FakeTransport(SLIP_IN, stuck=True)  # the job doesn't finish until released
         state["transport"] = transport
-        return SlipPrinter(transport, sleep=lambda s: release.wait(0.01))
+        return SlipPrinter(transport, sleep=lambda s: time.sleep(0.01))
 
     server.service.open_printer = open_printer
     assert call("/api/print", CHECK)[0] == 202
@@ -189,8 +187,7 @@ def test_second_print_while_busy_is_a_conflict(app):
     assert status == 409 and "Another job" in data["error"]
     _, busy = call("/api/status")
     assert busy["busy"] is True
-    state["transport"].states = [IDLE]  # the slip leaves; the job finishes
-    release.set()
+    state["transport"].stuck = False  # the job finishes
     server.service.thread.join(timeout=5)
     assert server.service.job.state == "done"
 
