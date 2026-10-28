@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import webbrowser
 from collections.abc import Callable
 
 from slipprinter import __version__, profile
@@ -120,6 +121,21 @@ def cmd_ruler(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    from slipprinter.web import serve
+
+    server = serve(args.port, lambda: open_printer())
+    url = f"http://localhost:{server.server_port}/"
+    print(f"Slip printer UI at {url} (Ctrl-C to stop)")
+    if args.open:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="slip", description="Configurable slip printing for the Epson TM-U295.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -148,6 +164,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--font", choices=sorted(profile.FONTS), default="5x7")
     p.add_argument("--timeout", type=float, default=120, help="seconds to wait for a slip (default 120)")
     p.set_defaults(func=cmd_ruler)
+
+    p = sub.add_parser("serve", help="run the web UI on localhost")
+    p.add_argument("--port", type=int, default=8295, help="port on 127.0.0.1 (default 8295; 0 picks a free one)")
+    p.add_argument("--open", action="store_true", help="open it in the browser")
+    p.set_defaults(func=cmd_serve)
     return parser
 
 

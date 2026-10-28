@@ -42,7 +42,10 @@ uv run slip preview check --set payee="Jane Example" --set amount=1234.56
 uv run slip print check --set payee="Jane Example" --set amount=1234.56 --set memo=Rent
 uv run slip print endorse --set name="Jane Example"
 uv run slip ruler                       # column/line ruler for measuring a layout
+uv run slip serve --open                # web UI on http://localhost:8295
 ```
+
+The web UI does the same with a form and a live preview; Print is enabled only once a slip is detected. It listens on 127.0.0.1 only and refuses cross-site requests.
 
 `slip print` validates the values, shows a preview, asks to confirm, then waits for you to insert the slip. Missing required fields are prompted for. The date defaults to today, and `amount_words` is filled in from `amount`.
 

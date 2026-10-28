@@ -35,6 +35,7 @@ src/slipprinter/
   words.py         amounts in words
   library.py       built-in + personal template lookup
   cli.py           the `slip` command
+  web.py           local web UI server (`slip serve`); web/index.html is the page
   templates/       built-in templates
 tests/             pytest, one file per module; fakes.py scripts a printer
 samples/           reference images and Epson command listings

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slip Printer</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #1d1c1a; --muted: #6b6862; --border: #dedbd4;
+    --accent: #2f5d50; --accent-text: #ffffff; --ok: #2e7d4f; --warn: #b26a00; --bad: #b3261e;
+    --paper: #fffdf6; --ink: #3b2f6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161614; --panel: #201f1d; --text: #ecebe7; --muted: #a29f97; --border: #3a3834;
+      --accent: #7fc2ac; --accent-text: #10201b; --ok: #6fcf97; --warn: #f2b84b; --bad: #ff8a80;
+      --paper: #2a2824; --ink: #c9bdf5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  h1 { font-size: 17px; margin: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px;
+          border: 1px solid var(--border); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .pill.ok .dot { background: var(--ok); } .pill.warn .dot { background: var(--warn); }
+  .pill.bad .dot { background: var(--bad); }
+  main { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 20px; padding: 20px;
+         max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; font: inherit; color: var(--text);
+         background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+  .derived { font-size: 13px; color: var(--muted); padding: 8px 0 0; }
+  .paper { background: var(--paper); color: var(--ink); border: 1px solid var(--border); border-radius: 6px;
+           padding: 12px; overflow-x: auto; margin: 0; font: 13px/1.35 ui-monospace, Menlo, monospace; }
+  .error { color: var(--bad); font-size: 14px; min-height: 1.4em; margin: 10px 0 0; }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; padding: 9px 18px; border-radius: 6px; border: 0;
+           background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  #job { font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Slip Printer</h1>
+  <span id="status" class="pill" role="status"><span class="dot"></span><span id="status-text">Checking printer…</span></span>
+</header>
+<main>
+  <section aria-labelledby="form-title">
+    <h2 id="form-title" class="hint" style="margin:0">Template</h2>
+    <select id="template" aria-label="Template"></select>
+    <p id="description" class="hint"></p>
+    <form id="fields" autocomplete="off"></form>
+    <p id="template-errors" class="error"></p>
+  </section>
+  <section aria-labelledby="preview-title">
+    <h2 id="preview-title" class="hint" style="margin:0 0 8px">Preview</h2>
+    <pre id="preview" class="paper" aria-live="polite"></pre>
+    <p id="error" class="error" aria-live="polite"></p>
+    <p id="insert" class="hint"></p>
+    <div class="actions">
+      <button id="print" type="button" disabled>Print</button>
+      <span id="job" aria-live="polite"></span>
+    </div>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let templates = [], current = null, previewOk = false, printer = {}, printing = false, timer = null;
+
+async function api(path, body) {
+  const options = body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const response = await fetch(path, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || response.statusText);
+  return data;
+}
+
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function values() {
+  const out = {};
+  for (const el of $("fields").querySelectorAll("[name]")) if (el.value !== "") out[el.name] = el.value;
+  return out;
+}
+
+function buildForm() {
+  current = templates.find((t) => t.name === $("template").value);
+  const form = $("fields");
+  form.replaceChildren();
+  $("description").textContent = current.description;
+  $("insert").textContent = current.insert;
+  for (const f of current.fields) {
+    const label = document.createElement("label");
+    label.textContent = f.label + (f.required ? "" : " (optional)");
+    form.append(label);
+    if (f.type === "words") {
+      const note = document.createElement("div");
+      note.className = "derived";
+      note.textContent = `Filled in from ${current.fields.find((g) => g.key === f.source).label}`;
+      form.append(note);
+      continue;
+    }
+    const input = document.createElement(f.type === "multiline" ? "textarea" : "input");
+    input.name = f.key;
+    input.id = label.htmlFor = `field-${f.key}`;
+    if (f.type === "multiline") input.rows = Math.min(f.height, 8);
+    if (f.type === "date") { input.type = "date"; if (f.default === "today") input.value = today(); }
+    if (f.type === "money") { input.inputMode = "decimal"; input.placeholder = "0.00"; }
+    if (f.default && f.type !== "date") input.value = f.default;
+    input.addEventListener("input", schedulePreview);
+    form.append(input);
+  }
+  refreshPreview();
+}
+
+function schedulePreview() { clearTimeout(timer); timer = setTimeout(refreshPreview, 200); }
+
+async function refreshPreview() {
+  try {
+    const data = await api("/api/preview", { template: current.name, values: values() });
+    $("preview").textContent = data.preview;
+    $("error").textContent = "";
+    previewOk = true;
+  } catch (e) {
+    $("error").textContent = e.message;
+    previewOk = false;
+  }
+  updateButton();
+}
+
+function updateButton() {
+  const ready = printer.ready && printer.slip && previewOk && !printing;
+  $("print").disabled = !ready;
+  $("print").title = !previewOk ? "Fix the errors first" : !printer.slip ? "Insert a slip first" : "";
+}
+
+async function refreshStatus() {
+  try { printer = await api("/api/status"); } catch (e) { printer = { ready: false, message: e.message }; }
+  const pill = $("status");
+  pill.className = "pill " + (printer.busy ? "warn" : printer.ready ? (printer.slip ? "ok" : "warn") : "bad");
+  $("status-text").textContent = printer.message;
+  updateButton();
+}
+
+async function print() {
+  printing = true; updateButton();
+  $("job").textContent = "Printing…";
+  try {
+    await api("/api/print", { template: current.name, values: values() });
+    let job;
+    do { await new Promise((r) => setTimeout(r, 700)); job = await api("/api/job"); } while (job.state === "printing");
+    $("job").textContent = job.message;
+  } catch (e) {
+    $("job").textContent = e.message;
+  }
+  printing = false;
+  refreshStatus();
+}
+
+async function start() {
+  const data = await api("/api/templates");
+  templates = data.templates;
+  $("template-errors").textContent = data.errors.join("\n");
+  for (const t of templates) $("template").append(new Option(`${t.name}: ${t.description}`, t.name));
+  $("template").addEventListener("change", buildForm);
+  $("print").addEventListener("click", print);
+  buildForm();
+  refreshStatus();
+  setInterval(refreshStatus, 1500);
+}
+start().catch((e) => { $("error").textContent = e.message; });
+</script>
+</body>
+</html>
