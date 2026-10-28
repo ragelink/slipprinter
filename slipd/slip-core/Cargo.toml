@@ -1,0 +1,9 @@
+[package]
+name = "slip-core"
+description = "Driving the Epson TM-U295 slip printer: serial link, status, and raster to bit images."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+serialport = { version = "4.10", default-features = false }
