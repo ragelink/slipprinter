@@ -16,7 +16,7 @@ Every command in Epson's TM-U295 specification (Rev. I), and where this project 
 | `ESC !` | font, double height/width, underline | template `font`; styles `double_height`, `double_width`, `underline` |
 | `ESC %` | select user-defined characters | template `characters` |
 | `ESC &` | define user-defined characters | template `characters` (5x7, 7 rows of 5) |
-| `ESC *` | 8-dot bit image, 80 or 160 dpi | template `images` (`density: single` or `double`) |
+| `ESC *` | 8-dot bit image, 80 or 160 dpi | `slip image`; template `images` (`density`, `width`, `dither`, `threshold`, `aspect`) |
 | `ESC 2` | line spacing 1/6" | template default |
 | `ESC 3` | line spacing n/60" | template `line_spacing` |
 | `ESC =` | enable/disable the printer | `slip send` |

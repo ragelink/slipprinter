@@ -42,6 +42,7 @@ uv run slip preview check --set payee="Jane Example" --set amount=1234.56
 uv run slip print check --set payee="Jane Example" --set amount=1234.56 --set memo=Rent
 uv run slip print endorse --set name="Jane Example"
 uv run slip ruler                       # column/line ruler for measuring a layout
+uv run slip image logo.png --dither     # print an image (add --preview out.png to see it first)
 uv run slip serve --open                # web UI on http://localhost:8295
 ```
 

@@ -4,10 +4,15 @@ import argparse
 import sys
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
+
+from PIL import Image as PILImage
+from PIL import UnidentifiedImageError
 
 from slipprinter import __version__, profile
 from slipprinter.connection import PORT_ENV, PortNotFoundError, candidate_ports, find_port
 from slipprinter.device import NoSlipError, PrinterNotReadyError, SlipPrinter
+from slipprinter.images import ImageError, bands_of, image_job, prepare, preview_image
 from slipprinter.library import all_templates, get_template, user_dir
 from slipprinter.raw import RawCommandError, validate
 from slipprinter.raw import parse as parse_raw
@@ -123,6 +128,29 @@ def cmd_ruler(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_image(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    width = args.width
+    if width is None:
+        try:
+            with PILImage.open(path) as img:
+                native = img.width
+        except (OSError, UnidentifiedImageError) as e:
+            raise ImageError(f"can't read image {path.name}: {e}") from None
+        width = min(native, profile.IMAGE_WIDTH_MAX[args.density])  # shrink to fit the band, never enlarge
+    dots = prepare(path, args.density, width=width, dither=args.dither, threshold=args.threshold,
+                   aspect=not args.no_aspect)  # fmt: skip
+    if args.preview:
+        preview_image(dots, args.density).save(args.preview)
+        print(f"Saved a preview of the printed dots to {args.preview} ({dots.width} x {dots.height} dots)")
+        return 0
+    print(f"{dots.width} x {dots.height} dots. Insert a slip face up.")
+    with open_printer() as printer:
+        printer.print_job(image_job(bands_of(dots), args.density), slip_timeout=args.timeout)
+    print("Printed and ejected.")
+    return 0
+
+
 MODELS = {0x02: "TM-U295"}
 
 
@@ -223,6 +251,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=120, help="seconds to wait for a slip (default 120)")
     p.set_defaults(func=cmd_ruler)
 
+    p = sub.add_parser("image", help="print an image (PNG, JPEG, ...) on the slip")
+    p.add_argument("file")
+    p.add_argument("--density", choices=("single", "double"), default="single",
+                   help="80 dpi (up to 210 dots wide) or 160 dpi (up to 420) across; default single")  # fmt: skip
+    p.add_argument("--width", type=int, help="width in dots (default: the image's own, shrunk to fit the band)")
+    p.add_argument("--dither", action="store_true", help="dither shades of gray (for photos)")
+    p.add_argument("--threshold", type=int, default=128, help="gray level that prints as black, 1-255 (default 128)")
+    p.add_argument("--no-aspect", action="store_true", help="don't correct for the printer's non-square dots")
+    p.add_argument("--preview", metavar="OUT.png", help="save the printed dots as an image instead of printing")
+    p.add_argument("--timeout", type=float, default=120, help="seconds to wait for a slip (default 120)")
+    p.set_defaults(func=cmd_image)
     sub.add_parser("info", help="show the printer's model, type and ROM version").set_defaults(func=cmd_info)
     sub.add_parser("eject", help="eject the slip (FF)").set_defaults(func=cmd_eject)
     sub.add_parser("release", help="release the slip without ejecting it (ESC q)").set_defaults(func=cmd_release)
@@ -250,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (TemplateError, FillError, RawCommandError, NoSlipError, PrinterNotReadyError, StatusError,
+    except (TemplateError, FillError, RawCommandError, ImageError, NoSlipError, PrinterNotReadyError, StatusError,
             PortNotFoundError) as e:  # fmt: skip
         print(f"slip: {e}", file=sys.stderr)
         return 2

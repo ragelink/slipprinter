@@ -23,7 +23,7 @@ FIELD_KEYS = {"label", "line", "col", "width", "height", "type", "required", "de
               "align", "style"}  # fmt: skip
 TEMPLATE_KEYS = {"name", "description", "insert", "orientation", "font", "codepage", "size", "page", "fields", "text",
                  "images"} | OPTION_KEYS  # fmt: skip
-IMAGE_KEYS = {"line", "col", "path", "density", "threshold"}
+IMAGE_KEYS = {"line", "col", "path", "density", "threshold", "width", "dither", "aspect"}
 
 
 class TemplateError(ValueError):
@@ -171,7 +171,10 @@ def _parse_images(raw: Any, base_dir: Path | None, orientation: str, upside_down
         threshold = _int(item, "threshold", where, minimum=1, default=128)
         _require(threshold <= 255, where, "'threshold' is at most 255")
         try:
-            width, bands = load_bands(base_dir / item["path"], density, threshold)
+            width, bands = load_bands(
+                base_dir / item["path"], density, threshold,
+                width=item.get("width"), dither=bool(item.get("dither", False)), aspect=bool(item.get("aspect", True)),
+            )  # fmt: skip
         except ImageError as e:
             raise TemplateError(f"{where}: {e}") from None
         images.append(Image(_int(item, "line", where), _int(item, "col", where), item["path"], density, width, bands))

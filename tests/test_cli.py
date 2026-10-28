@@ -284,3 +284,39 @@ def test_print_uses_the_template_finish(fake_printer, tmp_path, monkeypatch):
     transport = fake_printer(SLIP_IN, SLIP_IN, IDLE)
     assert main(["print", "kick", "--set", "a=x", "--yes"]) == 0
     assert transport.written.endswith(b"\x1bq\x1bp\x00\x32\xfa")
+
+
+# ---------------------------------------------------------------- images
+
+
+@pytest.fixture
+def picture(tmp_path):
+    from PIL import Image as PILImage
+
+    img = PILImage.new("L", (400, 100), 255)
+    img.paste(0, (0, 0, 400, 50))
+    path = tmp_path / "wide.png"
+    img.save(path)
+    return path
+
+
+def test_image_shrinks_to_the_band_and_prints(fake_printer, picture, capsys):
+    transport = fake_printer(SLIP_IN)
+    assert main(["image", str(picture)]) == 0
+    assert "210 x 39 dots" in capsys.readouterr().out  # 400x100 -> 210 wide, 52.5 tall, x 3/4 for the dots
+    assert transport.written.count(b"\x1b*\x00\xd2\x00") == 5  # 39 rows = 5 bands of 210 columns
+    assert transport.written.endswith(b"\x1bJ\x08" + EJECT)
+
+
+def test_image_preview_saves_without_printing(picture, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "open_printer", lambda: pytest.fail("preview opened the printer"))
+    out = tmp_path / "preview.png"
+    assert main(["image", str(picture), "--density", "double", "--preview", str(out)]) == 0
+    assert out.exists() and "400 x 38 dots" in capsys.readouterr().out
+
+
+def test_image_errors(fake_printer, tmp_path, capsys):
+    fake_printer(SLIP_IN)
+    (tmp_path / "bad.png").write_text("nope")
+    assert main(["image", str(tmp_path / "bad.png")]) == 2
+    assert "can't read image" in capsys.readouterr().err
