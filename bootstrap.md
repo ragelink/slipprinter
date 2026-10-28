@@ -16,7 +16,12 @@ This repo and its issue tracker are **public**. Never put any of the following i
 - hardware serial numbers. USB-serial device paths such as `/dev/cu.usbserial-XXXXXXXX` embed one. Detect the port at runtime; never hard-code it.
 - secrets of any kind: tokens, keys, passwords
 
-Fixtures use obviously fake data (`Jane Example`, `000123456789`). When describing hardware or a bug in an issue, describe it generically. The secrets/PII scanners enforce this, but they are a backstop, not permission to be careless.
+Fixtures use obviously fake data (`Jane Example`, account and routing numbers starting with `000`, `000-00-0000`, device names containing `TEST`). When describing hardware or a bug in an issue, describe it generically. The scanners enforce this, but they are a backstop, not permission to be careless:
+
+- **gitleaks** with the default secret rules plus PII rules in `.gitleaks.toml`: routing numbers, account numbers, MICR lines, SSNs, USB-serial device paths. Fake values (above) are allowlisted.
+- **pre-commit** runs gitleaks, Ruff and the `always` tests before every commit (`make hooks` to install).
+- **CI** scans the full git history on every push and PR (`make scan` runs the same thing locally).
+- **Issue and PR text** is scanned when posted or edited; a match gets a comment and a failed check. GitHub keeps edit history, so a real leak has to be deleted, not just edited out.
 
 ## Layout
 
@@ -34,6 +39,7 @@ samples/           reference images and Epson command listings
 |---|---|
 | Environment and dependencies | `uv` (`uv sync`); `uv.lock` is committed |
 | Format and lint | Ruff (`make format`, `make lint`), zero warnings |
+| Secrets and PII | gitleaks (`make scan`), pre-commit (`make hooks`) |
 | Tests | pytest with tier markers |
 
 Docker is deliberately not used: Docker Desktop on macOS can't pass a USB-serial device through to a container, and this tool exists to drive a serial printer on the host.

@@ -1,0 +1,76 @@
+# Scans issue and PR titles, bodies and comments for secrets and PII when they're
+# posted or edited. Uses pull_request_target so it can comment on PRs from forks;
+# it never checks out or runs PR code, only the default branch's .gitleaks.toml.
+name: Scan issue and PR text
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created, edited]
+  pull_request_target:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .gitleaks.toml
+          sparse-checkout-cone-mode: false
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  /tmp/gitleaks.tgz" | sha256sum -c -
+          sudo tar -xzf /tmp/gitleaks.tgz -C /usr/local/bin gitleaks
+      - name: Collect text
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+          TITLE: ${{ github.event.issue.title || github.event.pull_request.title }}
+          BODY: ${{ github.event.issue.body || github.event.pull_request.body }}
+        run: |
+          mkdir -p /tmp/text
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            printf '%s\n' "$COMMENT" > /tmp/text/comment.md
+          else
+            printf '%s\n\n%s\n' "$TITLE" "$BODY" > /tmp/text/post.md
+          fi
+      - name: Scan
+        id: scan
+        run: |
+          gitleaks dir /tmp/text --config .gitleaks.toml --redact --no-banner \
+            --report-format json --report-path /tmp/report.json --exit-code 0
+          echo "rules=$(jq -r '[.[].RuleID] | unique | join(", ")' /tmp/report.json)" >> "$GITHUB_OUTPUT"
+      - name: Flag findings
+        if: steps.scan.outputs.rules != ''
+        uses: actions/github-script@v9.0.0
+        env:
+          RULES: ${{ steps.scan.outputs.rules }}
+        with:
+          script: |
+            const number = context.payload.issue?.number ?? context.payload.pull_request.number;
+            const where = context.eventName === 'issue_comment' ? 'a comment here' : 'this title or description';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              body: [
+                `Possible private data found in ${where} (rules: ${process.env.RULES}).`,
+                '',
+                'This repository is public. Please remove it. Editing alone is not enough:',
+                'GitHub keeps edit history, so delete the comment, or ask a maintainer to delete the revision.',
+                'If it was a real secret, rotate it.',
+              ].join('\n'),
+            });
+            core.setFailed(`Private data found: ${process.env.RULES}`);

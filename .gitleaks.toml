@@ -1,0 +1,51 @@
+# Secrets and PII scanning for a public repo that handles checks.
+# Runs on pre-commit, in CI (full history), and on issue/PR text. See bootstrap.md.
+
+title = "slipprinter"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "us-routing-number"
+description = "US bank routing (ABA) number next to a routing keyword"
+regex = '''(?i)\b(?:routing|aba|rtn|transit)\b[^0-9\n]{0,24}\b([0-9]{9})\b'''
+secretGroup = 1
+keywords = ["routing", "aba", "rtn", "transit"]
+
+[[rules]]
+id = "bank-account-number"
+description = "Bank account number next to an account keyword"
+regex = '''(?i)\b(?:account|acct|a/c)\b[^0-9\n]{0,24}\b([0-9]{6,17})\b'''
+secretGroup = 1
+keywords = ["account", "acct", "a/c"]
+
+[[rules]]
+id = "micr-line"
+description = "MICR line with transit symbols, as printed at the bottom of a check"
+regex = '''⑆\s*([0-9]{9})\s*⑆'''
+secretGroup = 1
+keywords = ["⑆"]
+
+[[rules]]
+id = "us-ssn"
+description = "US Social Security number"
+regex = '''\b([0-9]{3}-[0-9]{2}-[0-9]{4})\b'''
+secretGroup = 1
+
+[[rules]]
+id = "usb-serial-device-path"
+description = "USB-serial device path that embeds a hardware serial number"
+regex = '''/dev/(?:cu|tty)\.(?:usbserial|usbmodem|wchusbserial|SLAB_USBtoUART)-?([A-Za-z0-9]{5,})'''
+secretGroup = 1
+keywords = ["usbserial", "usbmodem", "slab_usbtouart"]
+
+# Obviously fake fixture values. Real data never looks like this.
+[[allowlists]]
+description = "Fake fixture data"
+regexTarget = "secret"
+regexes = [
+    '''(?i)^(?:TEST|EXAMPLE|FAKE|XXXX)[A-Z0-9]*$''',
+    '''^000[0-9]*$''',
+    '''^000-00-0000$''',
+]

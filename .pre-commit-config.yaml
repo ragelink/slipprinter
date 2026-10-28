@@ -1,0 +1,19 @@
+# Install once with `make hooks`. See bootstrap.md.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: pytest-always
+        name: pytest (always tier)
+        entry: uv run pytest -m always -q
+        language: system
+        pass_filenames: false
+        types: [python]
