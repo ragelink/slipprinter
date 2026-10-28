@@ -101,7 +101,10 @@ def test_templates_lists_builtins_with_fields(app):
 def test_preview_renders_and_reports_bad_values(app):
     call, _, _ = app
     status, data = call("/api/preview", CHECK)
-    assert status == 200 and "Twelve and 50/100" in data["preview"]
+    assert status == 200 and "Twelve and 50/100" in data["preview"] and data["error"] is None
+    status, data = call("/api/preview", {"template": "check", "values": {"amount": "5"}})
+    assert status == 200 and "Five and 00/100" in data["preview"]  # layout shown while the form is incomplete
+    assert data["error"] == "Pay to the order of is required"
     status, data = call("/api/preview", {"template": "check", "values": {"payee": "x", "amount": "lots"}})
     assert status == 422 and "not an amount" in data["error"]
 

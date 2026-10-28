@@ -152,6 +152,15 @@ def test_bad_values_are_rejected_not_truncated(values, match):
         resolve(tpl(SIMPLE), values)
 
 
+def test_partial_preview_leaves_missing_required_fields_blank():
+    t = tpl(SIMPLE)
+    assert "$12.00" in preview(t, {"amt": "12"}, partial=True)
+    with pytest.raises(FillError, match="Who is required"):
+        preview(t, {"amt": "12"})
+    with pytest.raises(FillError, match="not an amount"):
+        preview(t, {"amt": "lots"}, partial=True)  # bad values are still errors
+
+
 def test_optional_field_left_blank_prints_nothing():
     t = tpl("name: t\nfields:\n  a: {line: 0, col: 0, width: 3, required: false}\n")
     assert render(t, {}) == CP437 + MODE

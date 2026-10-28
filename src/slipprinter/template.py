@@ -335,8 +335,13 @@ def _encode_katakana(ch: str) -> bytes:
 # ---------------------------------------------------------------- filling in
 
 
-def resolve(template: Template, values: dict[str, Any], today: dt.date | None = None) -> dict[str, list[str]]:
-    """Each field's printed lines, after defaults, formatting and fill. Raises FillError on bad input."""
+def resolve(
+    template: Template, values: dict[str, Any], today: dt.date | None = None, *, partial: bool = False
+) -> dict[str, list[str]]:
+    """Each field's printed lines, after defaults, formatting and fill. Raises FillError on bad input.
+
+    With partial=True, missing required fields are left blank instead (for previewing a form in progress).
+    """
     unknown = set(values) - {f.key for f in template.fields}
     if unknown:
         raise FillError(f"unknown fields: {', '.join(sorted(unknown))}")
@@ -355,7 +360,7 @@ def resolve(template: Template, values: dict[str, Any], today: dt.date | None = 
             source = raw[f.source]
             value = None if source is None else _amount(amount_in_words, source, where)
         if value is None:
-            if f.required:
+            if f.required and not partial:
                 raise FillError(f"{where} is required")
             resolved[f.key] = []
             continue
@@ -486,10 +491,10 @@ def finish(template: Template) -> bytes:
     return finish_options(template.options)
 
 
-def preview(template: Template, values: dict[str, Any], today: dt.date | None = None) -> str:
+def preview(template: Template, values: dict[str, Any], today: dt.date | None = None, *, partial: bool = False) -> str:
     """The layout as text: one character per column, double width shown spaced out."""
     grid = [[" "] * template.columns for _ in range(template.lines)]
-    for line, segments in _segments(template, resolve(template, values, today)).items():
+    for line, segments in _segments(template, resolve(template, values, today, partial=partial)).items():
         for seg in segments:
             text = " ".join(seg.text) + " " if "double_width" in seg.style else seg.text
             for i, ch in enumerate(text[: template.columns - seg.col]):
