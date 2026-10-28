@@ -18,6 +18,7 @@ INIT = b"\x1b@"
 # of paper. Off by default, which lets a job print into thin air past the slip.
 STOP_AT_PAPER_END = b"\x1bc4\x30"
 EJECT = b"\x0c"
+PAPER_STATUS = b"\x1bv"  # answered only after everything before it has printed
 
 
 class Transport(Protocol):
@@ -95,21 +96,30 @@ class SlipPrinter:
                 raise NoSlipError(f"No slip inserted within {timeout:g} s")
             self.sleep(self.poll_interval)
 
-    def wait_for_eject(self, timeout: float) -> PrinterStatus:
-        """Poll until the slip has left both sensors, meaning the job is done."""
-        deadline = self.clock() + timeout
-        while True:
-            status = self.status()
-            if status.unrecoverable_error or status.error:
-                raise PrinterNotReadyError("; ".join(status.problems()))
-            if not status.slip_present:
-                return status
-            if self.clock() >= deadline:
-                raise PrinterNotReadyError(f"Slip still in the printer after {timeout:g} s")
-            self.sleep(self.poll_interval)
+    def wait_for_job(self, timeout: float) -> None:
+        """Wait until everything sent so far has printed.
 
-    def print_job(self, job: bytes, *, slip_timeout: float = 0, eject_timeout: float = 120) -> None:
-        """Print `job` on the inserted slip, eject it, and wait for it to leave.
+        ESC v (paper sensor status) is processed in order with the print data, so
+        its reply only arrives once the job ahead of it is done. Slip sensors can't
+        tell us that: a long sheet still covers them after it's ejected.
+        """
+        self.transport.reset_input_buffer()
+        self.transport.write(PAPER_STATUS)
+        self.transport.flush()
+        deadline = self.clock() + timeout
+        while self.clock() < deadline:
+            reply = self.transport.read(1)
+            if reply and reply[0] & 0x90 == 0:  # ESC v replies look like 0xx0xxxx
+                return
+            if not reply:
+                self.sleep(self.poll_interval)
+        status = self.status()
+        problems = status.problems()
+        detail = f": {'; '.join(problems)}" if problems else ""
+        raise PrinterNotReadyError(f"Job didn't finish within {timeout:g} s{detail}")
+
+    def print_job(self, job: bytes, *, slip_timeout: float = 0, job_timeout: float = 120) -> None:
+        """Print `job` on the inserted slip, eject it, and wait until the printer has finished.
 
         With slip_timeout > 0, wait that long for a slip; otherwise one must already be in.
         """
@@ -120,6 +130,7 @@ class SlipPrinter:
             self.check_ready(status)
             if not status.slip_present:
                 raise NoSlipError("No slip inserted")
+        self.transport.reset_input_buffer()
         self.transport.write(INIT + STOP_AT_PAPER_END + job + EJECT)
         self.transport.flush()
-        self.wait_for_eject(eject_timeout)
+        self.wait_for_job(job_timeout)
